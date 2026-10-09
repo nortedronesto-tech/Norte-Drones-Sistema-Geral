@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Montserrat Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* Paleta do Manual de Identidade Visual da Norte Drones */
+  --color-brand-dark: #0b3d2e;     /* Verde Escuro — base, institucional */
+  --color-brand-green: #2e7d32;    /* Verde Principal — marca */
+  --color-brand-lime: #a8d83b;     /* Verde Lima — CTA, destaque */
+  --color-brand-amber: #f39a22;    /* Âmbar — contraste, pendências */
+  --color-brand-graphite: #253339; /* Grafite — texto */
+  --color-brand-mist: #f5f7f7;     /* Cinza Claro — fundos */
+  --color-danger: #b3261e;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--color-brand-mist);
+  color: var(--color-brand-graphite);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+/* valores monetários alinham melhor com algarismos tabulares */
+.num { font-variant-numeric: tabular-nums; }
