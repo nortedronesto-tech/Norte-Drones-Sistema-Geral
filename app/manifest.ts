@@ -5,12 +5,12 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Norte Drones · Gestão",
     short_name: "Norte Gestão",
     description: "Financeiro, agenda e campo da Norte Drones.",
-    start_url: "/",
-    scope: "/",
+    start_url: "/gestao",
+    scope: "/gestao",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#f5f7f7",
-    theme_color: "#0b3d2e",
+    background_color: "#f4f1e8",
+    theme_color: "#123f24",
     lang: "pt-BR",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -18,7 +18,7 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
-      { name: "Despesa com foto", url: "/despesa-foto", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Despesa com foto", url: "/gestao/despesa-foto", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

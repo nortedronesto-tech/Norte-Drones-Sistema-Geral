@@ -1,77 +1,72 @@
-# Norte Drones · Gestão
+# Norte Drones — projeto único (site + gestão + admin)
 
-Sistema interno de gestão da Norte Drones. **Fase 1 — Financeiro.**
-Stack: Next.js 16 (App Router) · TypeScript · Tailwind 4 · Supabase (Postgres + Auth + Storage) · PWA.
+Um só projeto Next.js 16 (App Router) + Supabase, publicado em um único projeto na Vercel.
 
-## O que a Fase 1 faz
+| Área | Rota | Acesso | O que é |
+|---|---|---|---|
+| Site público | `/` | aberto | Site institucional (contatos e imagens vêm do Supabase) |
+| Gestão (financeiro) | `/gestao/*` | sócios logados | Lançamentos, despesa com foto, fundo de reserva, cadastros, rateio por sócio |
+| Painel administrativo | `/admin` | sócios logados | Contatos e imagens do site, gerador de posts e de vídeos |
+| Login | `/login` | aberto | E-mail + senha (Supabase Auth), serve para `/gestao` e `/admin` |
 
-| Tela | Rota | Para quê |
+Stack: Next.js 16 · React 19 · Tailwind 4 · Supabase (Postgres + Auth + Storage) · PWA (só em `/gestao`).
+
+## Segurança
+
+- **Login único (Supabase Auth)**; só e-mails cadastrados em *Cadastros → Sócios* (tabela `partners`, ativo) têm acesso.
+- `proxy.ts` bloqueia `/gestao`, `/admin` e `/api/admin` sem sessão; as rotas `/api/admin/*` e o layout `/admin` conferem de novo se é sócio.
+- **O banco também protege (RLS)**: visitante e usuário não-sócio não leem nem gravam nada interno. O site público só lê as chaves `contacts` e `images` de `site_settings`.
+- Nenhuma chave privada no frontend: só a chave pública (`anon`/publishable) do Supabase. **Nunca** use a `service_role` neste projeto.
+- Rateio e reserva são calculados por trigger no banco; ninguém chama `apply_income_split` pela API.
+
+## Banco (Supabase)
+
+Migrações em `supabase/migrations`, em ordem:
+
+1. `0001_fase1_financeiro.sql` — financeiro, rateio, RLS
+2. `0002_storage_receipts.sql` — bucket privado de recibos
+3. `0003_site_publico_admin.sql` — `site_settings` (contatos/imagens) e bucket público `site-images`
+4. `0004_hardening_funcoes.sql` — search_path fixo e revogação de execução pública
+5. `seed.sql` — 2 sócios 50/50 e 3 contas (rode uma vez)
+
+## Variáveis de ambiente
+
+| Variável | Obrigatória | Onde achar |
 |---|---|---|
-| Visão geral | `/` | Saldo por conta, saldo total, fundo de reserva, a pagar/receber, rateio por sócio |
-| Lançamentos | `/lancamentos` | Lista com filtros; marcar como pago/recebido; ver foto; excluir |
-| Novo lançamento | `/lancamentos/novo` | Entrada/saída com conta, categoria e status, com prévia do rateio |
-| Despesa com foto | `/despesa-foto` | Valor + categoria + conta + foto, para lançar em segundos |
-| Fundo de reserva | `/reserva` | Extrato com saldo corrente e registro de retiradas |
-| Cadastros | `/cadastros` | Sócios (nome, e-mail, %) e contas |
+| `NEXT_PUBLIC_SUPABASE_URL` | sim | Supabase → Project Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | sim | mesma tela (chave anon/publishable) |
+| `NEXT_PUBLIC_SITE_URL` | recomendada | URL final do site |
+| `OPENAI_API_KEY` | não | só para a IA de imagem no `/admin` (servidor) |
 
-### Regra de rateio (vive no banco, não no front)
-
-Toda entrada **recebida** (status `pago`) passa pelo trigger `apply_income_split`:
-
-1. Retém `reserve_pct`% (10%) para o fundo de reserva → linhas em `reserve_fund_entries`, em nome de cada sócio na proporção da participação (50/50 = 5% + 5%).
-2. Divide o restante entre os sócios ativos conforme `partners.share_pct` → linhas em `transaction_splits`.
-3. Centavos: método do maior resto, a soma sempre fecha exatamente.
-4. Entrada `a_receber` **não** gera rateio; ao marcar como recebida, gera. Editar valor/status refaz; excluir desfaz.
-
-Os percentuais dos sócios ativos precisam somar 100, senão a entrada é recusada.
-
-## Colocar no ar (passo a passo)
-
-### 1. Criar o banco no Supabase
-1. Em supabase.com, crie um projeto (região **South America – São Paulo**).
-2. Abra **SQL Editor → New query**. Cole e rode, **nesta ordem**, o conteúdo de:
-   1. `supabase/migrations/0001_fase1_financeiro.sql`
-   2. `supabase/migrations/0002_storage_receipts.sql`
-   3. `supabase/seed.sql` (cria os 2 sócios 50/50 e 3 contas de exemplo)
-
-### 2. Criar os logins
-1. **Authentication → Users → Add user → Create new user**: e-mail `richiteradm@gmail.com`, defina uma senha, marque *Auto Confirm User*.
-2. Faça o mesmo para o Mateus quando souber o e-mail dele e depois preencha esse e-mail em **Cadastros → Sócios** (só e-mails cadastrados como sócio acessam os dados).
-3. **Authentication → Sign In / Providers → Email**: desligue **Allow new users to sign up** (o cadastro público tem que ficar fechado).
-
-### 3. Rodar no seu computador
 ```bash
-cp .env.example .env.local     # preencha com URL e anon key de Project Settings → API
+cp .env.example .env.local   # preencha
 npm install
-npm run dev                    # abre http://localhost:3000
+npm run dev
 ```
 
-### 4. Publicar na Vercel
-Importe o repositório, em **Environment Variables** crie `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` e faça o deploy. No celular, abra o site e use **Adicionar à tela inicial** para instalar o app.
+## Primeiro acesso
+
+1. Supabase → **Authentication → Users → Add user**: e-mail do sócio (ex.: `richiteradm@gmail.com`), senha, *Auto Confirm*.
+2. Supabase → **Authentication → Sign In / Providers → Email**: desligue **Allow new users to sign up**.
+3. Entre em `/login`. Para o Mateus: cadastre o e-mail dele em *Gestão → Cadastros → Sócios* e crie o login dele igual ao passo 1.
+4. Em `/admin`, preencha WhatsApp, telefone, e-mail, Instagram e envie as imagens do site.
 
 ## Testes
 
 ```bash
-PGUSER=postgres npm run test:sql
-```
-Sobe um banco temporário, aplica as migrations e confere rateio (incl. centavos), reserva, constraints e RLS. Precisa de um Postgres 15+ local.
-
-## Organização
-
-```
-app/(app)/           telas protegidas + server actions (actions.ts)
-app/login/           login (e-mail + senha)
-components/          formulários e listas (client) e primitivos de UI
-lib/                 supabase clients, dados, formatação, rateio (prévia), imagem
-supabase/migrations  schema, trigger de rateio, RLS, storage
-supabase/tests       testes SQL
-public/sw.js         service worker (ver abaixo)
-proxy.ts             renovação de sessão e proteção de rotas (Next 16)
+npm run typecheck
+PGUSER=postgres npm run test:sql   # precisa de Postgres 15+ local
 ```
 
-## Limites conhecidos da Fase 1
+## Estrutura
 
-- **Offline:** o service worker só torna o app instalável, guarda arquivos estáticos e mostra uma tela "sem conexão". Páginas e dados financeiros **não** ficam em cache no aparelho de propósito. A fila offline com IndexedDB (foto/captura em campo sincronizando depois) entra na **Fase 4**.
-- **Retirada da reserva** só baixa o saldo do fundo; a despesa correspondente deve ser lançada à parte.
-- Não há edição de lançamento existente: exclua e lance de novo.
-- O rateio acumulado por sócio é um *razão* do que cada um tem a receber; pagamento/pró-labore efetivo não é controlado ainda.
+```
+app/(site)/page.tsx     site público
+app/gestao/            sistema interno
+app/admin/             painel administrativo (+ geradores de post/vídeo)
+app/api/admin/         rotas protegidas (contatos, imagens, IA, proxy de imagem)
+components/site/       componentes do site público
+components/            componentes da gestão
+lib/                   supabase (server/client/public), conteúdo do site, guarda de sócio
+supabase/              migrações, seed e testes SQL
+```

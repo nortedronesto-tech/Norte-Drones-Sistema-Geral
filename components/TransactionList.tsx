@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { CheckCircle2, Image as ImageIcon, Trash2 } from "lucide-react";
-import { deleteTransaction, markPaid } from "@/app/(app)/actions";
+import { deleteTransaction, markPaid } from "@/app/gestao/actions";
 import { formatBRL, formatDate } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 import { FormError, Money, StatusBadge } from "./ui";

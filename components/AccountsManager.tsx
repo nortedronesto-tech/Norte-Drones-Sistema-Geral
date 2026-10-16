@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveAccount } from "@/app/(app)/actions";
+import { saveAccount } from "@/app/gestao/actions";
 import { ACCOUNT_KIND_LABEL } from "@/lib/constants";
 import { parseMoney } from "@/lib/format";
 import type { AccountKind, BankAccount, Partner } from "@/lib/types";

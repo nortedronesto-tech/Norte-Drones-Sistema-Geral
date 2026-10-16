@@ -1,24 +1,64 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Montserrat Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Montserrat Variable", "Montserrat", ui-sans-serif, system-ui, sans-serif;
 
-  /* Paleta do Manual de Identidade Visual da Norte Drones */
-  --color-brand-dark: #0b3d2e;     /* Verde Escuro — base, institucional */
-  --color-brand-green: #2e7d32;    /* Verde Principal — marca */
-  --color-brand-lime: #a8d83b;     /* Verde Lima — CTA, destaque */
-  --color-brand-amber: #f39a22;    /* Âmbar — contraste, pendências */
-  --color-brand-graphite: #253339; /* Grafite — texto */
-  --color-brand-mist: #f5f7f7;     /* Cinza Claro — fundos */
+  /* Nova identidade visual da Norte Drones: verde profundo, dourado e creme. */
+  --color-brand-dark: #123f24;     /* Verde profundo — base institucional */
+  --color-brand-green: #2f6b3f;    /* Verde médio — marca, links */
+  --color-brand-lime: #d9be82;     /* Dourado claro — destaque/CTA sobre verde */
+  --color-brand-amber: #c6a35a;    /* Dourado — pendências, detalhes */
+  --color-brand-graphite: #1f2b24; /* Grafite esverdeado — texto */
+  --color-brand-mist: #f4f1e8;     /* Creme — fundos */
   --color-danger: #b3261e;
+
+  /* Mesmas cores sob os nomes usados no site público e no admin. */
+  --color-nd-green-dark: #123f24;
+  --color-nd-green: #2f6b3f;
+  --color-nd-green-lime: #d9be82;
+  --color-nd-amber: #c6a35a;
+  --color-nd-graphite: #1f2b24;
+  --color-nd-mist: #f4f1e8;
+
+  --container-8xl: 90rem;
+  --shadow-card: 0 8px 30px -12px rgba(18, 63, 36, 0.25);
+
+  --animate-fadeUp: fadeUp 0.7s ease-out both;
+  @keyframes fadeUp {
+    0% { opacity: 0; transform: translateY(16px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
 }
 
-html { -webkit-text-size-adjust: 100%; }
+/* Compatibilidade com o comportamento do Tailwind 3 (bordas e cursor padrão). */
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+}
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body {
-  background: var(--color-brand-mist);
+  background: #ffffff;
   color: var(--color-brand-graphite);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
 }
 /* valores monetários alinham melhor com algarismos tabulares */
 .num { font-variant-numeric: tabular-nums; }
+
+.container-nd {
+  width: 100%;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+@media (min-width: 768px) {
+  .container-nd {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}

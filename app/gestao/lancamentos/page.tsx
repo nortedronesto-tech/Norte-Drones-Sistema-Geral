@@ -73,7 +73,7 @@ export default async function TransactionsPage({
       <PageHeader
         title="Lançamentos"
         subtitle="Entradas e saídas, pagas ou pendentes."
-        action={<div className="hidden md:block"><Link href="/lancamentos/novo" className={btn.primary}><Plus className="size-5" aria-hidden /> Novo</Link></div>}
+        action={<div className="hidden md:block"><Link href="/gestao/lancamentos/novo" className={btn.primary}><Plus className="size-5" aria-hidden /> Novo</Link></div>}
       />
 
       <form method="get" className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-5">
@@ -108,7 +108,7 @@ export default async function TransactionsPage({
 
       {hasMore && (
         <div className="mt-4 text-center">
-          <Link href={`/lancamentos?${moreParams}`} className={btn.ghost}>Mostrar mais</Link>
+          <Link href={`/gestao/lancamentos?${moreParams}`} className={btn.ghost}>Mostrar mais</Link>
         </div>
       )}
     </>

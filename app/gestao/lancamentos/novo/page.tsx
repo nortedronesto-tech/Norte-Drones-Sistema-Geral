@@ -14,7 +14,7 @@ export default async function NewTransactionPage() {
       <PageHeader title="Novo lançamento" subtitle="Entrada ou saída, paga ou pendente." />
       <Card className="mx-auto max-w-2xl">
         {active.length === 0 ? (
-          <EmptyState>Cadastre ao menos uma conta em <Link href="/cadastros" className="font-bold text-brand-green underline">Cadastros</Link> antes de lançar.</EmptyState>
+          <EmptyState>Cadastre ao menos uma conta em <Link href="/gestao/cadastros" className="font-bold text-brand-green underline">Cadastros</Link> antes de lançar.</EmptyState>
         ) : (
           <TransactionForm accounts={active} partners={partners} reservePct={reservePct} />
         )}

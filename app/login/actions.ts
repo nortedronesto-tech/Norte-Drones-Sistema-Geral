@@ -11,5 +11,7 @@ export async function signIn(_prev: { error?: string; email?: string } | undefin
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: "E-mail ou senha incorretos.", email };
-  redirect("/");
+  const next = String(formData.get("next") ?? "");
+  // só aceita caminhos internos (evita redirecionamento para sites externos)
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/gestao");
 }

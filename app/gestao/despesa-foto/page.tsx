@@ -12,7 +12,7 @@ export default async function PhotoExpensePage() {
       <PageHeader title="Nova despesa com foto" subtitle="Valor, categoria, conta e foto: lance em segundos." />
       <Card className="mx-auto max-w-xl">
         {accounts.length === 0 ? (
-          <EmptyState>Cadastre uma conta em <Link href="/cadastros" className="font-bold text-brand-green underline">Cadastros</Link> primeiro.</EmptyState>
+          <EmptyState>Cadastre uma conta em <Link href="/gestao/cadastros" className="font-bold text-brand-green underline">Cadastros</Link> primeiro.</EmptyState>
         ) : (
           <PhotoExpenseForm accounts={accounts} />
         )}

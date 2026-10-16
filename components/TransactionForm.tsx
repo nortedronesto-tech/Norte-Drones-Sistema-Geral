@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createTransaction } from "@/app/(app)/actions";
+import { createTransaction } from "@/app/gestao/actions";
 import { categoriesFor } from "@/lib/constants";
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
 import { previewSplit } from "@/lib/split";
@@ -50,7 +50,7 @@ export function TransactionForm({
     startTransition(async () => {
       const res = await createTransaction({ type, amount, account_id: accountId, category, description, status, date });
       if (!res.ok) return setError(res.error);
-      router.push("/lancamentos");
+      router.push("/gestao/lancamentos");
     });
   }
 

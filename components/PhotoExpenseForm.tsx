@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Camera, CheckCircle2, ImagePlus, RefreshCw } from "lucide-react";
-import { createTransaction } from "@/app/(app)/actions";
+import { createTransaction } from "@/app/gestao/actions";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image";
 import { EXPENSE_CATEGORIES } from "@/lib/constants";
@@ -109,7 +109,7 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
           <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-brand-green" aria-hidden />
           <div>
             <p className="font-bold">Despesa lançada</p>
-            <p>{done} <Link href="/lancamentos" className="font-bold underline">Ver lançamentos</Link></p>
+            <p>{done} <Link href="/gestao/lancamentos" className="font-bold underline">Ver lançamentos</Link></p>
           </div>
         </div>
       )}

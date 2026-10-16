@@ -3,18 +3,18 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Camera, House, ListChecks, LogOut, PiggyBank, Settings } from "lucide-react";
-import { signOut } from "@/app/(app)/actions";
+import { Camera, Globe, House, ListChecks, LogOut, PiggyBank, Settings } from "lucide-react";
+import { signOut } from "@/app/gestao/actions";
 
 const items = [
-  { href: "/", label: "Início", icon: House },
-  { href: "/lancamentos", label: "Lançamentos", icon: ListChecks },
-  { href: "/despesa-foto", label: "Despesa com foto", icon: Camera, cta: true },
-  { href: "/reserva", label: "Reserva", icon: PiggyBank },
-  { href: "/cadastros", label: "Cadastros", icon: Settings },
+  { href: "/gestao", label: "Início", icon: House },
+  { href: "/gestao/lancamentos", label: "Lançamentos", icon: ListChecks },
+  { href: "/gestao/despesa-foto", label: "Despesa com foto", icon: Camera, cta: true },
+  { href: "/gestao/reserva", label: "Reserva", icon: PiggyBank },
+  { href: "/gestao/cadastros", label: "Cadastros", icon: Settings },
 ];
 
-const isActive = (path: string, href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+const isActive = (path: string, href: string) => (href === "/gestao" ? path === "/gestao" : path.startsWith(href));
 
 export function Nav({ userName, email }: { userName: string; email: string }) {
   const path = usePathname();
@@ -54,6 +54,9 @@ export function Nav({ userName, email }: { userName: string; email: string }) {
           })}
         </nav>
         <div className="border-t border-white/15 pt-4">
+          <Link href="/admin" className="mb-3 flex items-center gap-2 text-sm font-medium text-white/75 hover:text-white">
+            <Globe className="size-4" aria-hidden /> Admin do site
+          </Link>
           <p className="truncate text-sm font-semibold">{userName}</p>
           <p className="truncate text-xs text-white/60">{email}</p>
           <form action={signOut}>

@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { deleteReserveEntry } from "@/app/(app)/actions";
+import { deleteReserveEntry } from "@/app/gestao/actions";
 
 export function ReserveDeleteButton({ id }: { id: string }) {
   const [pending, start] = useTransition();

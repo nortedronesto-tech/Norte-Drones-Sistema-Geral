@@ -46,7 +46,7 @@ export default async function DashboardPage() {
         subtitle="Saldos das contas, reserva e rateio entre os sócios."
         action={
           <div className="hidden md:block">
-            <Link href="/lancamentos/novo" className={btn.primary}>
+            <Link href="/gestao/lancamentos/novo" className={btn.primary}>
               <Plus className="size-5" aria-hidden /> Novo lançamento
             </Link>
           </div>
@@ -71,8 +71,8 @@ export default async function DashboardPage() {
 
       {/* Atalhos mobile */}
       <div className="mt-3 grid grid-cols-2 gap-3 md:hidden">
-        <Link href="/despesa-foto" className={btn.cta}><Camera className="size-5" aria-hidden /> Despesa com foto</Link>
-        <Link href="/lancamentos/novo" className={btn.ghost}><Plus className="size-5" aria-hidden /> Lançamento</Link>
+        <Link href="/gestao/despesa-foto" className={btn.cta}><Camera className="size-5" aria-hidden /> Despesa com foto</Link>
+        <Link href="/gestao/lancamentos/novo" className={btn.ghost}><Plus className="size-5" aria-hidden /> Lançamento</Link>
       </div>
 
       {/* Pendências e mês */}
@@ -147,7 +147,7 @@ export default async function DashboardPage() {
 
       {/* Últimos lançamentos */}
       <Card className="mt-4">
-        <CardTitle aside={<Link href="/lancamentos" className="text-sm font-bold text-brand-green hover:underline">Ver todos</Link>}>Últimos lançamentos</CardTitle>
+        <CardTitle aside={<Link href="/gestao/lancamentos" className="text-sm font-bold text-brand-green hover:underline">Ver todos</Link>}>Últimos lançamentos</CardTitle>
         {transactions.length === 0 ? (
           <EmptyState>Nenhum lançamento ainda. Comece por “Novo lançamento”.</EmptyState>
         ) : (

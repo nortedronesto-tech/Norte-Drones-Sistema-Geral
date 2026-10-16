@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { savePartnerShares, updatePartner } from "@/app/(app)/actions";
+import { savePartnerShares, updatePartner } from "@/app/gestao/actions";
 import type { Partner } from "@/lib/types";
 import { btn, FormError, inputClass, labelClass } from "./ui";
 

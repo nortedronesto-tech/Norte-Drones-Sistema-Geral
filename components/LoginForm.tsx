@@ -4,10 +4,11 @@ import { useActionState } from "react";
 import { signIn } from "@/app/login/actions";
 import { btn, FormError, inputClass, labelClass } from "./ui";
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(signIn, undefined);
   return (
     <form action={action} className="space-y-4">
+      <input type="hidden" name="next" value={next ?? ""} />
       <div>
         <label htmlFor="email" className={labelClass}>E-mail</label>
         <input id="email" name="email" type="email" autoComplete="email" inputMode="email" defaultValue={state?.email} required className={inputClass} />
