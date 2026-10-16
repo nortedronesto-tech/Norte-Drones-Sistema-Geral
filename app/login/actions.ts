@@ -10,7 +10,14 @@ export async function signIn(_prev: { error?: string; email?: string } | undefin
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: "E-mail ou senha incorretos.", email };
+  if (error) {
+    // Mostra o motivo real: "senha errada" não é a única causa possível.
+    if (error.code === "invalid_credentials") return { error: "E-mail ou senha incorretos.", email };
+    if (error.code === "email_not_confirmed") {
+      return { error: "Esse e-mail ainda não foi confirmado no Supabase (Authentication → Users → marque como confirmado).", email };
+    }
+    return { error: `Não foi possível entrar (${error.code ?? error.status ?? "erro"}): ${error.message}`, email };
+  }
   const next = String(formData.get("next") ?? "");
   // só aceita caminhos internos (evita redirecionamento para sites externos)
   redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/gestao");
