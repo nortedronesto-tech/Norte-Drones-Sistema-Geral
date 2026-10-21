@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/gestao/actions";
+import { AdminTabs } from "@/components/AdminTabs";
 
 export const metadata: Metadata = {
   title: "Painel administrativo",
@@ -40,6 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Caveat:wght@600;700&display=swap"
         rel="stylesheet"
       />
+      <AdminTabs />
       {children}
     </div>
   );
