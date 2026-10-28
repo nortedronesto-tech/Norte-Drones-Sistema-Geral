@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Renova a sessão do Supabase e protege as áreas internas:
-//   /gestao, /admin e /api/admin exigem login; o site público (/) é aberto.
+//   /gestao, /admin, /api/admin e /api/gestao exigem login; o site público (/) é aberto.
 // (No Next 16, "middleware" passou a se chamar "proxy".)
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -26,7 +26,7 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const signedIn = !!data?.claims;
 
-  const isApi = pathname.startsWith("/api/admin");
+  const isApi = pathname.startsWith("/api/admin") || pathname.startsWith("/api/gestao");
   const isLogin = pathname === "/login";
 
   if (!signedIn && isApi) {
@@ -49,5 +49,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // O site público não passa pelo proxy: só login e as áreas internas.
-  matcher: ["/login", "/gestao/:path*", "/admin/:path*", "/api/admin/:path*"],
+  matcher: ["/login", "/gestao/:path*", "/admin/:path*", "/api/admin/:path*", "/api/gestao/:path*"],
 };

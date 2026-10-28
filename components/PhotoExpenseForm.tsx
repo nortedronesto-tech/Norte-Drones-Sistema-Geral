@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Camera, CheckCircle2, ImagePlus, RefreshCw } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { createTransaction } from "@/app/gestao/actions";
-import { createClient } from "@/lib/supabase/client";
-import { compressImage } from "@/lib/image";
+import { removeReceipt, uploadReceipt } from "@/lib/receipt-upload";
+import type { ScanResult } from "@/lib/receipt-scan";
+import { ReceiptCapture } from "./ReceiptCapture";
 import { EXPENSE_CATEGORIES } from "@/lib/constants";
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
 import type { BankAccount } from "@/lib/types";
@@ -30,6 +31,7 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
   const [busy, setBusy] = useState<"idle" | "compressing" | "uploading" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
   // Lembra a última conta/categoria: despesa seguinte costuma ser parecida.
@@ -58,16 +60,10 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
     if (!accountId) return setError("Escolha a conta.");
 
     let receiptPath: string | undefined;
-    const supabase = createClient();
     try {
       if (file) {
-        setBusy("compressing");
-        const { blob, ext, type } = await compressImage(file);
         setBusy("uploading");
-        const [y, m] = date.split("-");
-        receiptPath = `${y}/${m}/${crypto.randomUUID()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("receipts").upload(receiptPath, blob, { contentType: type, upsert: false });
-        if (upErr) throw new Error(`Não foi possível enviar a foto: ${upErr.message}`);
+        receiptPath = await uploadReceipt(file, date);
       }
       setBusy("saving");
       const res = await createTransaction({
@@ -82,7 +78,7 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
       });
       if (!res.ok) {
         // não deixa foto órfã no bucket se o lançamento falhou
-        if (receiptPath) await supabase.storage.from("receipts").remove([receiptPath]);
+        if (receiptPath) await removeReceipt(receiptPath);
         throw new Error(res.error);
       }
       writeLS(LS_ACCOUNT, accountId);
@@ -100,6 +96,19 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
     }
   }
 
+  // Preenche o formulário com o que a leitura da foto encontrou (o usuário confere antes de lançar).
+  function applyScan(d: ScanResult): string {
+    const filled: string[] = [];
+    if (d.amount) { setAmountText(d.amount.toFixed(2).replace(".", ",")); filled.push("valor"); }
+    if (d.category && (EXPENSE_CATEGORIES as readonly string[]).includes(d.category)) { setCategory(d.category); filled.push("categoria"); }
+    if (d.date && d.date <= todayBR() && d.date >= `${Number(todayBR().slice(0, 4)) - 2}-01-01`) { setDate(d.date); filled.push("data"); }
+    if (d.description) { setDescription(d.description); filled.push("observação"); }
+    if (filled.length) setDetailsOpen(true);
+    return filled.length
+      ? `Preenchi ${filled.join(", ")}. Confira antes de lançar.`
+      : "Não encontrei dados nessa foto. Preencha manualmente.";
+  }
+
   const busyLabel = { idle: "", compressing: "Preparando a foto…", uploading: "Enviando a foto…", saving: "Lançando…" }[busy];
 
   return (
@@ -114,16 +123,19 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
         </div>
       )}
 
+      {/* 0. Foto primeiro: tira a foto e o sistema preenche o resto */}
+      <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} label="1. Foto da nota / abastecimento" />
+
       {/* 1. Valor */}
       <div>
-        <label htmlFor="amount" className={labelClass}>Valor (R$)</label>
+        <label htmlFor="amount" className={labelClass}>2. Valor (R$)</label>
         <input ref={amountRef} id="amount" inputMode="decimal" autoComplete="off" placeholder="0,00" value={amountText}
           onChange={(e) => setAmountText(e.target.value)} className={`${inputClass} num py-4 text-3xl font-extrabold`} required />
       </div>
 
       {/* 2. Categoria */}
       <div>
-        <span className={labelClass}>Categoria</span>
+        <span className={labelClass}>3. Categoria</span>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Categoria">
           {EXPENSE_CATEGORIES.map((c) => (
             <button key={c} type="button" role="radio" aria-checked={category === c} onClick={() => setCategory(c)}
@@ -136,44 +148,14 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
 
       {/* 3. Conta */}
       <div>
-        <label htmlFor="account" className={labelClass}>Conta que pagou</label>
+        <label htmlFor="account" className={labelClass}>4. Conta que pagou</label>
         <select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} className={inputClass} required>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </div>
 
-      {/* 4. Foto */}
-      <div>
-        <span className={labelClass}>Foto do recibo / abastecimento</span>
-        {previewUrl ? (
-          <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="Pré-visualização da foto" className="size-20 rounded-lg object-cover" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{file?.name}</p>
-              <p className="text-xs text-brand-graphite/60">{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB — será reduzida antes de enviar` : ""}</p>
-            </div>
-            <button type="button" onClick={() => setFile(null)} className="rounded-lg p-2 text-brand-graphite/70 hover:bg-black/5" aria-label="Trocar foto">
-              <RefreshCw className="size-5" aria-hidden />
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <label className={`${btn.cta} cursor-pointer`}>
-              <Camera className="size-5" aria-hidden /> Tirar foto
-              <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            </label>
-            <label className={`${btn.ghost} cursor-pointer`}>
-              <ImagePlus className="size-5" aria-hidden /> Da galeria
-              <input type="file" accept="image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            </label>
-          </div>
-        )}
-        <p className="mt-1.5 text-xs text-brand-graphite/60">Foto que o Mateus mandou no WhatsApp? Salve na galeria e escolha “Da galeria”.</p>
-      </div>
-
       {/* 5. Detalhes opcionais */}
-      <details className="rounded-xl border border-black/10 bg-white px-4 py-3">
+      <details open={detailsOpen} onToggle={(e) => setDetailsOpen(e.currentTarget.open)} className="rounded-xl border border-black/10 bg-white px-4 py-3">
         <summary className="cursor-pointer text-sm font-semibold">Observação, data e situação</summary>
         <div className="mt-4 space-y-4">
           <div>

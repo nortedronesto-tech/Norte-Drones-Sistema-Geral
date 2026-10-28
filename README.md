@@ -36,7 +36,8 @@ Migrações em `supabase/migrations`, em ordem:
 | `NEXT_PUBLIC_SUPABASE_URL` | sim | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | sim | mesma tela (chave anon/publishable) |
 | `NEXT_PUBLIC_SITE_URL` | recomendada | URL final do site |
-| `OPENAI_API_KEY` | não | só para a IA de imagem no `/admin` (servidor) |
+| `OPENAI_API_KEY` | não | IA de imagem no `/admin` e **leitura automática das fotos de nota** (servidor). Sem ela, a foto anexa normalmente, mas não preenche sozinha |
+| `OPENAI_VISION_MODEL` | não | modelo que lê as notas (padrão `gpt-4o-mini`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | sim (usuários e backup) | Supabase → Project Settings → API Keys → *service_role*. **Segredo**: só no servidor, nunca com `NEXT_PUBLIC_` |
 | `RESEND_API_KEY` | sim (backup) | Chave do [Resend](https://resend.com) (conta criada com o e-mail que recebe o backup) |
 | `BACKUP_EMAIL_TO` | não | Destino do backup (padrão `nortedronesto@gmail.com`) |
@@ -47,6 +48,10 @@ cp .env.example .env.local   # preencha
 npm install
 npm run dev
 ```
+
+## Foto da nota com preenchimento automático
+
+Em **Despesa com foto** e em **Lançamentos → Novo lançamento** dá para tirar a foto (ou escolher da galeria). O sistema lê a nota e preenche valor, data, descrição, categoria (e entrada/saída) — o usuário só confere e salva. A leitura usa a OpenAI (`/api/gestao/receipt-scan`, só para quem pode lançar); a foto reduzida é enviada à OpenAI apenas nessa leitura e o original fica no bucket privado `receipts`.
 
 ## Níveis de acesso e usuários
 

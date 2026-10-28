@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createTransaction } from "@/app/gestao/actions";
 import { categoriesFor } from "@/lib/constants";
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
 import { previewSplit } from "@/lib/split";
+import { removeReceipt, uploadReceipt } from "@/lib/receipt-upload";
+import type { ScanResult } from "@/lib/receipt-scan";
+import { ReceiptCapture } from "./ReceiptCapture";
 import type { BankAccount, Partner, TxStatus, TxType } from "@/lib/types";
 import { btn, Card, FormError, inputClass, labelClass } from "./ui";
 
@@ -29,6 +32,15 @@ export function TransactionForm({
   const [description, setDescription] = useState("");
   const [paid, setPaid] = useState(true);
   const [date, setDate] = useState(todayBR());
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) return setPreviewUrl(null);
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   const amount = parseMoney(amountText);
   const status: TxStatus = paid ? "pago" : type === "entrada" ? "a_receber" : "a_pagar";
@@ -42,14 +54,39 @@ export function TransactionForm({
     setCategory(categoriesFor(next)[0]);
   }
 
+  // Preenche o formulário com o que a leitura da foto encontrou (o usuário confere antes de salvar).
+  function applyScan(d: ScanResult): string {
+    const filled: string[] = [];
+    const nextType: TxType = d.tipo ?? type;
+    if (nextType !== type) { setType(nextType); filled.push(nextType === "saida" ? "tipo (saída)" : "tipo (entrada)"); }
+    if (d.amount) { setAmountText(d.amount.toFixed(2).replace(".", ",")); filled.push("valor"); }
+    const cats = categoriesFor(nextType);
+    if (d.category && cats.includes(d.category)) { setCategory(d.category); filled.push("categoria"); }
+    else if (nextType !== type) setCategory(cats[0]);
+    if (d.date && d.date <= todayBR() && d.date >= `${Number(todayBR().slice(0, 4)) - 2}-01-01`) { setDate(d.date); filled.push("data"); }
+    if (d.description) { setDescription(d.description); filled.push("descrição"); }
+    return filled.length
+      ? `Preenchi ${filled.join(", ")}. Confira antes de salvar.`
+      : "Não encontrei dados nessa foto. Preencha manualmente.";
+  }
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!amount || amount <= 0) return setError("Informe um valor maior que zero.");
     if (!accountId) return setError("Escolha a conta.");
     startTransition(async () => {
-      const res = await createTransaction({ type, amount, account_id: accountId, category, description, status, date });
-      if (!res.ok) return setError(res.error);
+      let receiptPath: string | undefined;
+      try {
+        if (file) receiptPath = await uploadReceipt(file, date);
+      } catch (err) {
+        return setError(err instanceof Error ? err.message : "Não foi possível enviar a foto.");
+      }
+      const res = await createTransaction({ type, amount, account_id: accountId, category, description, status, date, receipt_path: receiptPath });
+      if (!res.ok) {
+        if (receiptPath) await removeReceipt(receiptPath); // não deixa foto órfã
+        return setError(res.error);
+      }
       router.push("/gestao/lancamentos");
     });
   }
@@ -63,6 +100,8 @@ export function TransactionForm({
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} label="Tem a foto da nota? (opcional)" />
+
       <div className="flex gap-2" role="group" aria-label="Tipo de lançamento">
         <button type="button" onClick={() => changeType("entrada")} className={seg(type === "entrada", "in")} aria-pressed={type === "entrada"}>Entrada</button>
         <button type="button" onClick={() => changeType("saida")} className={seg(type === "saida", "out")} aria-pressed={type === "saida"}>Saída</button>
@@ -131,7 +170,7 @@ export function TransactionForm({
 
       <FormError message={error} />
       <div className="flex gap-3">
-        <button type="submit" disabled={pending} className={`${btn.primary} flex-1`}>{pending ? "Salvando…" : "Salvar lançamento"}</button>
+        <button type="submit" disabled={pending} className={`${btn.primary} flex-1`}>{pending ? (file ? "Enviando foto e salvando…" : "Salvando…") : "Salvar lançamento"}</button>
         <button type="button" onClick={() => router.back()} className={btn.ghost}>Cancelar</button>
       </div>
     </form>
