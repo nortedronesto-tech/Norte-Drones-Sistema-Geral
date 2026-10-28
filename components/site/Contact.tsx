@@ -7,7 +7,7 @@ export async function Contact() {
   const { contacts } = await getSiteContent();
   const whatsappLink = buildWhatsAppLink(contacts);
 
-  const items = [
+  const allItems = [
     {
       label: "WhatsApp",
       value: contacts.whatsappNumber
@@ -36,6 +36,9 @@ export async function Contact() {
       href: null,
     },
   ];
+
+  // Campo não preenchido no /admin simplesmente não aparece no site público.
+  const items = allItems.filter((i) => i.value !== "A definir");
 
   return (
     <section id="contato" className="bg-white py-20 sm:py-28">

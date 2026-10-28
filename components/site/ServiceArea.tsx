@@ -25,11 +25,9 @@ export async function ServiceArea() {
             </p>
           </div>
           <div className="flex h-64 items-center justify-center rounded-2xl bg-white ring-1 ring-black/5 sm:h-80">
-            <div className="text-center text-nd-graphite/50">
+            <div className="px-6 text-center text-nd-graphite/60">
               <MapIcon />
-              <p className="mt-3 text-sm">
-                Mapa da área de atuação em breve
-              </p>
+              <p className="mt-3 text-sm font-semibold text-nd-green-dark">{area}</p>
             </div>
           </div>
         </div>
