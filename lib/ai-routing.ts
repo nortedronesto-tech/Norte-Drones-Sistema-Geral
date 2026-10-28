@@ -178,7 +178,10 @@ export function applyOutcome(cfg: AiConfig, p: AiProvider, error: CallError | nu
   } else {
     next.status[p] = {
       state: "error",
-      message: error.failure === "model" ? "modelo indisponível (ajuste o modelo)" : error.message.slice(0, 120),
+      message:
+        error.failure === "model" ? "modelo indisponível (ajuste o modelo)"
+        : error.failure === "transient" ? "sobrecarregada ou sem resposta agora (temporário)"
+        : error.message.slice(0, 120),
       at,
       lastOkAt,
     };
@@ -240,11 +243,11 @@ export async function orchestrate<T>(
 export type GeminiModelInfo = { name: string; methods?: string[] };
 
 /**
- * Escolhe, entre os modelos que a conta enxerga, o "flash" mais novo que gera texto a partir de imagem.
- * Os nomes do Google mudam a cada poucos meses (2.5 → 3.8 …) e modelos antigos saem do ar para contas
- * novas; por isso o sistema descobre sozinho em vez de depender de um nome fixo.
+ * Ordena os modelos "flash" do Gemini que a conta enxerga, do mais novo para o mais antigo
+ * (estável antes de preview). Os nomes do Google mudam a cada poucos meses (2.5 → 3.8 …) e modelos
+ * antigos saem do ar para contas novas; por isso o sistema descobre sozinho em vez de usar nome fixo.
  */
-export function pickGeminiModel(list: GeminiModelInfo[]): string | null {
+export function rankGeminiModels(list: GeminiModelInfo[]): string[] {
   const BAD = /lite|8b|image|tts|live|audio|embed|thinking|robotics|computer|learnlm|gemma|aqa|imagen|veo|native/i;
   const candidates = list
     .filter((m) => /^models\/gemini-\d/.test(m.name) && /flash/.test(m.name) && !BAD.test(m.name))
@@ -256,5 +259,10 @@ export function pickGeminiModel(list: GeminiModelInfo[]): string | null {
       return { id, version, preview };
     });
   candidates.sort((a, b) => b.version - a.version || a.preview - b.preview || a.id.length - b.id.length);
-  return candidates[0]?.id ?? null;
+  return candidates.map((c) => c.id);
+}
+
+/** O flash mais novo (ou null). */
+export function pickGeminiModel(list: GeminiModelInfo[]): string | null {
+  return rankGeminiModels(list)[0] ?? null;
 }

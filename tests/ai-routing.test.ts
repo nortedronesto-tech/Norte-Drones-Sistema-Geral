@@ -329,3 +329,9 @@ test("modelo aposentado é 'model' (e não 'invalid'), mesmo com status 403 ou 4
   assert.equal(classifyFailure(400, msg), "model");
   assert.equal(classifyFailure(403, "API key not valid. Please pass a valid API key."), "invalid");
 });
+
+import { rankGeminiModels } from "../lib/ai-routing.ts";
+test("Gemini: ranking devolve do mais novo ao mais antigo (para tentar outro quando um está sobrecarregado)", () => {
+  const list = [gm("gemini-2.5-flash"), gm("gemini-3.8-flash"), gm("gemini-3.1-flash"), gm("gemini-3.8-flash-lite")];
+  assert.deepEqual(rankGeminiModels(list), ["gemini-3.8-flash", "gemini-3.1-flash", "gemini-2.5-flash"]);
+});

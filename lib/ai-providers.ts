@@ -8,6 +8,7 @@ import {
   normalizeConfig,
   orchestrate,
   pickGeminiModel,
+  rankGeminiModels,
   type AiConfig,
   type AiProvider,
   type Attempt,
@@ -146,17 +147,43 @@ export async function callVision(
       if (!out) throw new ProviderCallError(j.promptFeedback?.blockReason ? `bloqueado (${j.promptFeedback.blockReason})` : "resposta vazia", "other", 200);
       return out;
     };
+    // sobrecarga do Google (503 "high demand") costuma passar em segundos: tenta de novo uma vez
+    const withRetry = async (mdl: string) => {
+      try {
+        return await generate(mdl);
+      } catch (e) {
+        if (e instanceof ProviderCallError && e.failure === "transient" && e.status !== null) {
+          await new Promise((r) => setTimeout(r, 1500));
+          return await generate(mdl);
+        }
+        throw e;
+      }
+    };
     try {
-      return await generate(model);
+      return await withRetry(model);
     } catch (e) {
-      // O Google aposenta modelos a cada poucos meses ("no longer available to new users"):
-      // descobre o flash mais novo da conta, tenta de novo e guarda para as próximas leituras.
-      if (!(e instanceof ProviderCallError) || e.failure !== "model") throw e;
-      const better = await discoverGeminiModel(key);
-      if (!better || better === model) throw e;
-      const out = await generate(better);
-      await rememberModel("gemini", better);
-      return out;
+      if (!(e instanceof ProviderCallError)) throw e;
+      // 1) Modelo aposentado ("no longer available to new users"): descobre o flash mais novo da conta,
+      //    tenta de novo e guarda para as próximas leituras.
+      if (e.failure === "model") {
+        const better = await discoverGeminiModel(key);
+        if (!better || better === model) throw e;
+        const out = await generate(better);
+        await rememberModel("gemini", better);
+        return out;
+      }
+      // 2) Modelo sobrecarregado: tenta outro flash da conta (sem guardar: é temporário).
+      if (e.failure === "transient" && e.status !== null) {
+        const alt = rankGeminiModels(await listGeminiModels(key)).find((m) => m !== model);
+        if (alt) {
+          try {
+            return await generate(alt);
+          } catch {
+            /* mantém o erro original */
+          }
+        }
+      }
+      throw e;
     }
   }
 

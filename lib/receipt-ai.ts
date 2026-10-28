@@ -85,7 +85,14 @@ export async function readReceipt(dataUrl: string): Promise<ReceiptReading & { p
         503,
       );
     }
-    const why = out.attempts.map((a) => `${PROVIDER_LABEL[a.provider]}: ${a.error.message}`).join(" · ");
+    const friendly = (f: string, msg: string) =>
+      f === "transient" ? "sobrecarregada ou sem resposta agora (é temporário, tente de novo em instantes)"
+      : f === "credit" ? "sem crédito/cota"
+      : f === "rate" ? "limite de uso atingido"
+      : f === "invalid" ? "chave recusada"
+      : f === "model" ? "modelo indisponível (ajuste em Admin → Integrações)"
+      : msg;
+    const why = out.attempts.map((a) => `${PROVIDER_LABEL[a.provider]}: ${friendly((a.error as { failure?: string }).failure ?? "other", a.error.message)}`).join(" · ");
     throw new ReceiptAiError(`Nenhuma IA conseguiu ler agora (${why}). Preencha manualmente ou veja Admin → Integrações.`, 502);
   }
 
