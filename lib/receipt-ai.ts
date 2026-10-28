@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/constants";
-import { getSecret } from "@/lib/app-secrets";
+import { PROVIDER_LABEL, ProviderCallError, callVision, runHybrid, type AiProvider } from "@/lib/ai-providers";
 
 const resultSchema = z.object({
   legible: z.boolean().optional(),
@@ -41,69 +41,59 @@ Devolva SOMENTE um JSON com as chaves:
   Entradas: ${INCOME_CATEGORIES.join(" | ")}
 Nunca invente valores: se não estiver visível, use null.`;
 
-/** Lê uma foto de nota/comprovante com um modelo de visão da OpenAI. */
-export async function readReceipt(dataUrl: string): Promise<ReceiptReading> {
-  const apiKey = await getSecret("OPENAI_API_KEY");
-  if (!apiKey) {
-    throw new ReceiptAiError(
-      "A leitura automática ainda não está ativa (falta cadastrar a chave da OpenAI em Admin → Integrações). Preencha os dados manualmente.",
-      503,
-    );
-  }
-  const model = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+function parseJsonLoose(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("sem JSON");
+  return JSON.parse(text.slice(start, end + 1));
+}
 
-  let res: Response;
-  try {
-    res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(25_000),
-      body: JSON.stringify({
-        model,
-        max_completion_tokens: 500,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Leia este comprovante e responda só o JSON." },
-              { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-            ],
-          },
-        ],
-      }),
-    });
-  } catch {
-    throw new ReceiptAiError("A leitura demorou demais ou a conexão falhou. Tente de novo ou preencha manualmente.", 504);
-  }
+class UnreadableReceipt extends Error {}
 
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-    const msg = body.error?.message ?? `erro ${res.status}`;
-    if (res.status === 401) throw new ReceiptAiError("A chave da OpenAI é inválida. Confira em Admin → Integrações.", 502);
-    if (res.status === 404 || /model/i.test(msg)) {
-      throw new ReceiptAiError(`Modelo de leitura indisponível (${model}). Defina OPENAI_VISION_MODEL na Vercel.`, 502);
+/**
+ * Lê uma foto de nota/comprovante com IA híbrida: usa a primeira IA disponível
+ * (Gemini, Grok, Groq, OpenAI — na ordem escolhida em Admin → Integrações) e passa
+ * para a próxima quando uma fica sem crédito, com chave inválida ou fora do ar.
+ */
+export async function readReceipt(dataUrl: string): Promise<ReceiptReading & { provider: AiProvider }> {
+  const out = await runHybrid(
+    async (p, key, model) => {
+      const text = await callVision(p, key, model, SYSTEM, "Leia este comprovante e responda só o JSON.", dataUrl);
+      let raw: unknown;
+      try {
+        raw = parseJsonLoose(text);
+      } catch {
+        throw new ProviderCallError("resposta em formato inesperado", "other", 200);
+      }
+      const parsed = resultSchema.safeParse(raw);
+      if (!parsed.success) throw new ProviderCallError("resposta em formato inesperado", "other", 200);
+      if (parsed.data.legible === false) throw new UnreadableReceipt();
+      return parsed.data;
+    },
+    (e) => e instanceof UnreadableReceipt,
+  ).catch((e) => {
+    if (e instanceof UnreadableReceipt) {
+      throw new ReceiptAiError("Não consegui ler essa foto. Tente de novo com mais luz e a nota inteira no quadro.", 422);
     }
-    if (res.status === 429) throw new ReceiptAiError("Limite ou saldo da OpenAI esgotado. Preencha manualmente por enquanto.", 502);
-    throw new ReceiptAiError(`Não foi possível ler a nota (${msg}).`, 502);
+    throw e;
+  });
+
+  if (!("value" in out)) {
+    if (out.none) {
+      throw new ReceiptAiError(
+        "A leitura automática ainda não está ativa: cadastre uma chave de IA (Gemini, Grok, Groq ou OpenAI) em Admin → Integrações. Preencha manualmente por enquanto.",
+        503,
+      );
+    }
+    const why = out.attempts.map((a) => `${PROVIDER_LABEL[a.provider]}: ${a.error.message}`).join(" · ");
+    throw new ReceiptAiError(`Nenhuma IA conseguiu ler agora (${why}). Preencha manualmente ou veja Admin → Integrações.`, 502);
   }
 
-  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json.choices?.[0]?.message?.content ?? "{}");
-  } catch {
-    throw new ReceiptAiError("A resposta da leitura veio num formato inesperado. Tente de novo.", 502);
-  }
-  const parsed = resultSchema.safeParse(raw);
-  if (!parsed.success) throw new ReceiptAiError("A resposta da leitura veio num formato inesperado. Tente de novo.", 502);
-  const v = parsed.data;
-  if (v.legible === false) throw new ReceiptAiError("Não consegui ler essa foto. Tente de novo com mais luz e a nota inteira no quadro.", 422);
-
+  const v = out.value;
   const all: readonly string[] = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES];
   const description = [v.merchant, v.description].filter(Boolean).join(" — ").slice(0, 200) || null;
   return {
+    provider: out.provider,
     tipo: v.tipo ?? null,
     amount: v.amount ?? null,
     date: v.date ?? null,

@@ -36,7 +36,7 @@ export function ReceiptCapture({
     try {
       const data = await scanReceipt(f);
       if (id !== run.current) return; // trocou a foto no meio
-      setNote({ kind: "ok", text: onScan(data) });
+      setNote({ kind: "ok", text: onScan(data) + (data.provider ? ` (lido por ${data.provider})` : "") });
     } catch (e) {
       if (id !== run.current) return;
       setNote({ kind: "warn", text: e instanceof Error ? e.message : "Não foi possível ler a nota." });

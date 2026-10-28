@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/admin-guard";
 import { readReceipt, ReceiptAiError } from "@/lib/receipt-ai";
+import { PROVIDER_LABEL } from "@/lib/ai-routing";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const MAX_DATA_URL = 3_500_000; // ~2,6 MB de imagem (o navegador já reduz para ~300 KB)
 
@@ -23,8 +24,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const data = await readReceipt(image);
-    return NextResponse.json({ ok: true, data });
+    const { provider, ...data } = await readReceipt(image);
+    return NextResponse.json({ ok: true, data, provider: PROVIDER_LABEL[provider] });
   } catch (err) {
     if (err instanceof ReceiptAiError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: "Não foi possível ler a nota." }, { status: 500 });

@@ -4,6 +4,8 @@ export type ScanResult = {
   date: string | null;
   description: string | null;
   category: string | null;
+  /** qual IA leu a nota (ex.: "Google Gemini") */
+  provider?: string;
 };
 
 /** Versão pequena da foto (1400 px, JPEG) só para a leitura automática: rápida no 4G e barata. */
@@ -41,7 +43,7 @@ export async function scanReceipt(file: File): Promise<ScanResult> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image }),
   });
-  const json = (await res.json().catch(() => ({}))) as { data?: ScanResult; error?: string };
+  const json = (await res.json().catch(() => ({}))) as { data?: ScanResult; provider?: string; error?: string };
   if (!res.ok || !json.data) throw new Error(json.error ?? "Não foi possível ler a nota.");
-  return json.data;
+  return { ...json.data, provider: json.provider };
 }

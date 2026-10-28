@@ -51,11 +51,15 @@ npm run dev
 
 ## Foto da nota com preenchimento automático
 
-Em **Despesa com foto** e em **Lançamentos → Novo lançamento** dá para tirar a foto (ou escolher da galeria). O sistema lê a nota e preenche valor, data, descrição, categoria (e entrada/saída) — o usuário só confere e salva. A leitura usa a OpenAI (`/api/gestao/receipt-scan`, só para quem pode lançar); a foto reduzida é enviada à OpenAI apenas nessa leitura e o original fica no bucket privado `receipts`.
+Em **Despesa com foto** e em **Lançamentos → Novo lançamento** dá para tirar a foto (ou escolher da galeria). O sistema lê a nota e preenche valor, data, descrição, categoria (e entrada/saída) — o usuário só confere e salva. O aviso informa qual IA leu.
+
+### IA híbrida (várias chaves, troca automática)
+
+Em **Admin → Integrações** você cola a chave de qualquer IA e o sistema descobre qual é pelo formato (`AIza…` Gemini, `xai-…` Grok, `gsk_…` Groq, `sk-…` OpenAI). As IAs ficam numa **ordem de uso** (padrão: Gemini → Grok → Groq → OpenAI). A leitura usa a primeira com crédito; se ela ficar sem cota/crédito, a chave for recusada ou a IA estiver fora do ar, passa sozinha para a próxima. Quem estourou o crédito fica de molho por um tempo (15 min se for limite de uso, 3 h se acabou o saldo) e depois volta a ser tentada. O painel mostra qual está **em uso agora** e o estado de cada uma. A lógica está em `lib/ai-routing.ts` (testada em `tests/ai-routing.test.ts`, rode `npm test`); as chamadas, em `lib/ai-providers.ts`; a leitura da nota, em `lib/receipt-ai.ts` e `/api/gestao/receipt-scan` (só quem pode lançar).
 
 ## Integrações (chaves de serviços externos)
 
-Em **/admin → Integrações** (só administrador) você cola a chave da **OpenAI** (leitura de notas e IA de imagem) e a do **Resend** (e-mail do backup). Elas ficam **criptografadas no Supabase Vault**, só o servidor as usa (o painel mostra apenas o final da chave) e valem na hora, sem Redeploy. Rode `supabase/migrations/0006_cofre_de_segredos.sql` uma vez. Exige a `SUPABASE_SERVICE_ROLE_KEY` na Vercel.
+Em **/admin → Integrações** (só administrador) você cola as chaves das IAs (Gemini, Grok, Groq, OpenAI) e a do **Resend** (e-mail do backup). A IA de imagem dos posts usa só a OpenAI. Elas ficam **criptografadas no Supabase Vault**, só o servidor as usa (o painel mostra apenas o final da chave) e valem na hora, sem Redeploy. Rode `supabase/migrations/0006_cofre_de_segredos.sql` uma vez. Exige a `SUPABASE_SERVICE_ROLE_KEY` na Vercel.
 
 ## Níveis de acesso e usuários
 
