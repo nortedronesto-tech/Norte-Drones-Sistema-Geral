@@ -264,3 +264,27 @@ test("orchestrate: ordem escolhida pelo usuário manda (OpenAI primeiro)", async
   const r: any = await orchestrate(f.deps, async (p) => p);
   assert.equal(r.provider, "openai");
 });
+
+// ------------------------------------------------ fotos do iPhone (HEIC)
+import { isHeicBytes, looksHeicByName } from "../lib/heic.ts";
+
+const bytes = (...s: (string | number)[]) => Uint8Array.from(s.flatMap((x) => (typeof x === "string" ? [...x].map((c) => c.charCodeAt(0)) : [x])));
+
+test("HEIC: reconhece pelo conteúdo mesmo com nome .jpeg", () => {
+  assert.equal(isHeicBytes(bytes(0, 0, 0, 24, "ftyp", "heic", 0, 0, 0, 0)), true);
+  assert.equal(isHeicBytes(bytes(0, 0, 0, 24, "ftyp", "mif1", 0, 0, 0, 0)), true);
+  assert.equal(isHeicBytes(bytes(0, 0, 0, 24, "ftyp", "HEIC", 0, 0, 0, 0)), true);
+});
+
+test("HEIC: JPEG e PNG de verdade não são confundidos", () => {
+  assert.equal(isHeicBytes(bytes(0xff, 0xd8, 0xff, 0xe0, 0, 16, "JFIF", 0, 1, 1, 0, 0)), false);
+  assert.equal(isHeicBytes(bytes(0x89, "PNG", 13, 10, 26, 10, 0, 0, 0, 13)), false);
+  assert.equal(isHeicBytes(bytes(1, 2, 3)), false);
+});
+
+test("HEIC: reconhece pelo nome/tipo declarado", () => {
+  assert.equal(looksHeicByName("foto.HEIC", ""), true);
+  assert.equal(looksHeicByName("foto.heif", ""), true);
+  assert.equal(looksHeicByName("x.jpg", "image/heic"), true);
+  assert.equal(looksHeicByName("IMG_3303.jpeg", "image/jpeg"), false);
+});

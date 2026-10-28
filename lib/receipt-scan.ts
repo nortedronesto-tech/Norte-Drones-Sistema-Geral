@@ -24,12 +24,12 @@ async function toScanDataUrl(file: File): Promise<string> {
   } catch {
     // navegador não decodificou (ex.: HEIC): tenta mandar o original se for um formato aceito
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
-      throw new Error("Esse formato de foto não pode ser lido automaticamente. Preencha manualmente.");
+      throw new Error("Não consegui abrir essa foto (formato não suportado). Tire de novo pelo botão “Tirar foto” ou escolha um JPG/PNG.");
     }
     return await new Promise<string>((resolve, reject) => {
       const r = new FileReader();
       r.onload = () => resolve(String(r.result));
-      r.onerror = () => reject(new Error("Não foi possível abrir a foto."));
+      r.onerror = () => reject(new Error("Não consegui abrir essa foto. Tire de novo ou escolha outra em JPG/PNG."));
       r.readAsDataURL(file);
     });
   }

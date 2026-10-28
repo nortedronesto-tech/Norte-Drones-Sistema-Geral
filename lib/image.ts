@@ -1,3 +1,23 @@
+import { isHeicBytes, looksHeicByName } from "@/lib/heic";
+
+/**
+ * Foto do iPhone (HEIC) → JPEG no próprio navegador. O Chrome/Firefox não abrem HEIC, e muita
+ * foto chega como ".jpeg" mas é HEIC por dentro, por isso olhamos o conteúdo, não só o nome.
+ * Qualquer outro formato volta sem mudança. A biblioteca (pesada) só é baixada quando precisa.
+ */
+export async function normalizeImageFile(file: File): Promise<File> {
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  if (!looksHeicByName(file.name, file.type) && !isHeicBytes(head)) return file;
+  try {
+    const { default: heic2any } = await import("heic2any");
+    const out = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 });
+    const blob = Array.isArray(out) ? out[0] : out;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg", lastModified: file.lastModified });
+  } catch {
+    throw new Error("Não consegui converter essa foto do iPhone (HEIC). Tire a foto de novo pelo botão “Tirar foto” ou envie como JPG.");
+  }
+}
+
 /**
  * Reduz a foto antes do upload: celulares geram 3–8 MB por foto e o sinal no
  * campo é ruim. 1600 px no maior lado e JPEG 80% mantêm recibo/placa legíveis

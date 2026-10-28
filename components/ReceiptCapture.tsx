@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Camera, ImagePlus, RefreshCw, ScanText, Sparkles } from "lucide-react";
 import { scanReceipt, type ScanResult } from "@/lib/receipt-scan";
+import { normalizeImageFile } from "@/lib/image";
 import { btn, labelClass } from "./ui";
 
 type Note = { kind: "ok" | "warn"; text: string } | null;
@@ -26,6 +27,8 @@ export function ReceiptCapture({
   label?: string;
 }) {
   const [scanning, setScanning] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [previewBroken, setPreviewBroken] = useState(false);
   const [note, setNote] = useState<Note>(null);
   const run = useRef(0);
 
@@ -45,12 +48,29 @@ export function ReceiptCapture({
     }
   }
 
-  function pick(f: File | null) {
-    run.current++;
+  async function pick(raw: File | null) {
+    const id = ++run.current;
     setNote(null);
     setScanning(false);
+    setPreviewBroken(false);
+    if (!raw) return onFile(null);
+
+    let f = raw;
+    try {
+      setConverting(true);
+      f = await normalizeImageFile(raw); // foto do iPhone (HEIC) vira JPEG
+    } catch (e) {
+      if (id === run.current) {
+        setConverting(false);
+        onFile(null);
+        setNote({ kind: "warn", text: e instanceof Error ? e.message : "Não foi possível abrir essa foto." });
+      }
+      return;
+    }
+    if (id !== run.current) return; // trocou a foto no meio da conversão
+    setConverting(false);
     onFile(f);
-    if (f) void scan(f);
+    void scan(f);
   }
 
   return (
@@ -59,7 +79,13 @@ export function ReceiptCapture({
       {previewUrl && file ? (
         <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={previewUrl} alt="Pré-visualização da foto" className="size-20 rounded-lg object-cover" />
+          {previewBroken ? (
+            <div className="grid size-20 shrink-0 place-items-center rounded-lg bg-black/[0.06] text-center text-[10px] font-semibold leading-tight text-brand-graphite/60">
+              sem prévia
+            </div>
+          ) : (
+            <img src={previewUrl} alt="Pré-visualização da foto" onError={() => setPreviewBroken(true)} className="size-20 shrink-0 rounded-lg object-cover" />
+          )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{file.name}</p>
             <p className="text-xs text-brand-graphite/60">{(file.size / 1024 / 1024).toFixed(1)} MB — será reduzida antes de enviar</p>
@@ -86,6 +112,11 @@ export function ReceiptCapture({
         </div>
       )}
 
+      {converting && (
+        <p role="status" className="mt-2 flex items-center gap-2 rounded-xl bg-brand-green/10 px-3 py-2 text-sm font-semibold text-brand-dark">
+          <Sparkles className="size-4 animate-pulse text-brand-green" aria-hidden /> Convertendo a foto do iPhone…
+        </p>
+      )}
       {scanning && (
         <p role="status" className="mt-2 flex items-center gap-2 rounded-xl bg-brand-green/10 px-3 py-2 text-sm font-semibold text-brand-dark">
           <Sparkles className="size-4 animate-pulse text-brand-green" aria-hidden /> Lendo a nota…
