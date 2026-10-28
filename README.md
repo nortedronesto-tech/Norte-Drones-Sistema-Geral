@@ -23,7 +23,7 @@ Stack: Next.js 16 · React 19 · Tailwind 4 · Supabase (Postgres + Auth + Stora
 
 Migrações em `supabase/migrations`, em ordem:
 
-1. `0001_fase1_financeiro.sql` — financeiro, rateio, RLS
+1. `0001_fase1_financeiro.sql` — financeiro, rateio, RLS (depois: 0002–0006, nesta ordem)
 2. `0002_storage_receipts.sql` — bucket privado de recibos
 3. `0003_site_publico_admin.sql` — `site_settings` (contatos/imagens) e bucket público `site-images`
 4. `0004_hardening_funcoes.sql` — search_path fixo e revogação de execução pública
@@ -36,10 +36,10 @@ Migrações em `supabase/migrations`, em ordem:
 | `NEXT_PUBLIC_SUPABASE_URL` | sim | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | sim | mesma tela (chave anon/publishable) |
 | `NEXT_PUBLIC_SITE_URL` | recomendada | URL final do site |
-| `OPENAI_API_KEY` | não | IA de imagem no `/admin` e **leitura automática das fotos de nota** (servidor). Sem ela, a foto anexa normalmente, mas não preenche sozinha |
+| `OPENAI_API_KEY` | não | Alternativa à tela **Admin → Integrações**: IA de imagem e **leitura automática das fotos de nota**. O que estiver cadastrado em Integrações tem prioridade |
 | `OPENAI_VISION_MODEL` | não | modelo que lê as notas (padrão `gpt-4o-mini`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | sim (usuários e backup) | Supabase → Project Settings → API Keys → *service_role*. **Segredo**: só no servidor, nunca com `NEXT_PUBLIC_` |
-| `RESEND_API_KEY` | sim (backup) | Chave do [Resend](https://resend.com) (conta criada com o e-mail que recebe o backup) |
+| `RESEND_API_KEY` | não | Alternativa à tela **Admin → Integrações**: chave do [Resend](https://resend.com) para o backup por e-mail |
 | `BACKUP_EMAIL_TO` | não | Destino do backup (padrão `nortedronesto@gmail.com`) |
 | `CRON_SECRET` | sim (agendamentos) | Texto longo e aleatório; a Vercel o envia nos agendamentos |
 
@@ -52,6 +52,10 @@ npm run dev
 ## Foto da nota com preenchimento automático
 
 Em **Despesa com foto** e em **Lançamentos → Novo lançamento** dá para tirar a foto (ou escolher da galeria). O sistema lê a nota e preenche valor, data, descrição, categoria (e entrada/saída) — o usuário só confere e salva. A leitura usa a OpenAI (`/api/gestao/receipt-scan`, só para quem pode lançar); a foto reduzida é enviada à OpenAI apenas nessa leitura e o original fica no bucket privado `receipts`.
+
+## Integrações (chaves de serviços externos)
+
+Em **/admin → Integrações** (só administrador) você cola a chave da **OpenAI** (leitura de notas e IA de imagem) e a do **Resend** (e-mail do backup). Elas ficam **criptografadas no Supabase Vault**, só o servidor as usa (o painel mostra apenas o final da chave) e valem na hora, sem Redeploy. Rode `supabase/migrations/0006_cofre_de_segredos.sql` uma vez. Exige a `SUPABASE_SERVICE_ROLE_KEY` na Vercel.
 
 ## Níveis de acesso e usuários
 
@@ -72,7 +76,7 @@ Toda segunda, 8h (Brasília), a Vercel chama `/api/cron/backup`, que envia por e
 
 Configuração (uma vez):
 1. Crie uma conta em resend.com **com o e-mail que vai receber o backup** e gere uma *API Key*.
-2. Na Vercel, cadastre `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` e `CRON_SECRET`, e faça Redeploy.
+2. Na Vercel, cadastre `SUPABASE_SERVICE_ROLE_KEY` e `CRON_SECRET` e faça Redeploy. Depois cole a chave do Resend em **Admin → Integrações**.
 3. Em **/admin → Backup**, clique em *Enviar backup agora* para testar.
 
 ## Domínio próprio

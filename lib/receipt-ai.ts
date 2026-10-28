@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/constants";
+import { getSecret } from "@/lib/app-secrets";
 
 const resultSchema = z.object({
   legible: z.boolean().optional(),
@@ -42,10 +43,10 @@ Nunca invente valores: se não estiver visível, use null.`;
 
 /** Lê uma foto de nota/comprovante com um modelo de visão da OpenAI. */
 export async function readReceipt(dataUrl: string): Promise<ReceiptReading> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getSecret("OPENAI_API_KEY");
   if (!apiKey) {
     throw new ReceiptAiError(
-      "A leitura automática ainda não está ativa (falta a OPENAI_API_KEY na Vercel). Preencha os dados manualmente.",
+      "A leitura automática ainda não está ativa (falta cadastrar a chave da OpenAI em Admin → Integrações). Preencha os dados manualmente.",
       503,
     );
   }
@@ -80,7 +81,7 @@ export async function readReceipt(dataUrl: string): Promise<ReceiptReading> {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     const msg = body.error?.message ?? `erro ${res.status}`;
-    if (res.status === 401) throw new ReceiptAiError("A chave da OpenAI (OPENAI_API_KEY) é inválida.", 502);
+    if (res.status === 401) throw new ReceiptAiError("A chave da OpenAI é inválida. Confira em Admin → Integrações.", 502);
     if (res.status === 404 || /model/i.test(msg)) {
       throw new ReceiptAiError(`Modelo de leitura indisponível (${model}). Defina OPENAI_VISION_MODEL na Vercel.`, 502);
     }

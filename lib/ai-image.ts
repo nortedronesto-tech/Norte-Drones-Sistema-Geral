@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAI from "openai";
+import { getSecret } from "@/lib/app-secrets";
 
 // Tamanhos suportados pelo modelo de imagem da OpenAI (gpt-image-1).
 // Mapeamos o formato do post/vídeo (quadrado ou story) para o tamanho mais
@@ -8,11 +9,11 @@ export function sizeForHeight(height: number): "1024x1024" | "1024x1536" {
   return height > 1200 ? "1024x1536" : "1024x1024";
 }
 
-function client(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
+async function client(): Promise<OpenAI> {
+  const apiKey = await getSecret("OPENAI_API_KEY");
   if (!apiKey) {
     throw new Error(
-      "OPENAI_API_KEY não configurado. Adicione essa variável de ambiente na Vercel (Project Settings → Environment Variables) e faça um redeploy."
+      "A chave da OpenAI não está cadastrada. Cadastre em Admin → Integrações."
     );
   }
   return new OpenAI({ apiKey });
@@ -25,7 +26,7 @@ export async function generateAiImage(opts: {
   prompt: string;
   size: "1024x1024" | "1024x1536";
 }): Promise<Buffer> {
-  const openai = client();
+  const openai = await client();
   const result = await openai.images.generate({
     model: "gpt-image-1",
     prompt: `${opts.prompt}. ${STYLE_SUFFIX}`,
@@ -44,7 +45,7 @@ export async function editAiImage(opts: {
   imageBuffer: Buffer;
   imageMimeType: string;
 }): Promise<Buffer> {
-  const openai = client();
+  const openai = await client();
   const file = await OpenAI.toFile(
     opts.imageBuffer,
     "input." + (opts.imageMimeType.split("/")[1] || "png"),

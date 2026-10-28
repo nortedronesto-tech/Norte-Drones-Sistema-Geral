@@ -10,6 +10,7 @@ import { PostGenerator } from "./PostGenerator";
 import { VideoGenerator } from "./VideoGenerator";
 import { UsersManager } from "./UsersManager";
 import { BackupPanel } from "./BackupPanel";
+import { IntegrationsPanel } from "./IntegrationsPanel";
 import { formatPhoneBR } from "./phoneFormat";
 
 const EMPTY: SiteContacts = {
@@ -33,6 +34,7 @@ const BASE_TABS = [
 // Só o administrador vê estas abas.
 const ADMIN_TABS = [
   { key: "usuarios", label: "Usuários" },
+  { key: "integracoes", label: "Integrações" },
   { key: "backup", label: "Backup" },
 ] as const;
 
@@ -239,6 +241,7 @@ export default function AdminDashboard({
       )}
 
       {isAdmin && tab === "usuarios" && <UsersManager />}
+      {isAdmin && tab === "integracoes" && <IntegrationsPanel />}
       {isAdmin && tab === "backup" && <BackupPanel />}
 
       {tab === "video" && (

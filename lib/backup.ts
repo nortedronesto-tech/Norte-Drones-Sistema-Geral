@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSecret } from "@/lib/app-secrets";
 
 const TABLES = [
   "settings",
@@ -61,8 +62,8 @@ export async function buildBackup() {
 
 /** Envia o backup por e-mail (Resend). Os arquivos seguem em anexo. */
 export async function sendBackupEmail() {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("Falta a RESEND_API_KEY na Vercel (veja o guia de backup no README).");
+  const apiKey = await getSecret("RESEND_API_KEY");
+  if (!apiKey) throw new Error("Falta a chave do Resend: cadastre em Admin → Integrações.");
   const to = process.env.BACKUP_EMAIL_TO || "nortedronesto@gmail.com";
   const from = process.env.BACKUP_EMAIL_FROM || "Norte Drones <onboarding@resend.dev>";
 
