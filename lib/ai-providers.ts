@@ -8,11 +8,13 @@ import {
   normalizeConfig,
   orchestrate,
   pickGeminiModel,
+  pickVisionModel,
   rankGeminiModels,
   type AiConfig,
   type AiProvider,
   type Attempt,
   type Failure,
+  type ModelInfo,
 } from "@/lib/ai-routing";
 
 export { PROVIDER_IDS, PROVIDER_LABEL, cleanKey, detectProvider, applyOutcome } from "@/lib/ai-routing";
@@ -281,6 +283,76 @@ export async function listGeminiModels(key: string): Promise<{ name: string; met
 
 export async function discoverGeminiModel(key: string): Promise<string | null> {
   return pickGeminiModel(await listGeminiModels(key));
+}
+
+/** Lista os modelos que a chave enxerga, no formato comum (vazio se não der para listar). */
+export async function listModels(p: AiProvider, key: string): Promise<ModelInfo[]> {
+  if (p === "gemini") {
+    return (await listGeminiModels(key)).map((m) => ({ id: m.name.replace(/^models\//, "") }));
+  }
+  const meta = PROVIDER_META[p];
+  let url: string;
+  let headers: Record<string, string> = { Authorization: `Bearer ${key}` };
+  if (meta.kind === "anthropic") {
+    url = "https://api.anthropic.com/v1/models?limit=100";
+    headers = { "x-api-key": key, "anthropic-version": "2023-06-01" };
+  } else if (meta.kind === "cohere") {
+    url = "https://api.cohere.com/v1/models?page_size=100";
+  } else if (p === "openrouter") {
+    url = "https://openrouter.ai/api/v1/models";
+    headers = {};
+  } else {
+    url = `${meta.baseUrl}/models`;
+  }
+  let res: Response;
+  try {
+    res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+  } catch {
+    return [];
+  }
+  if (!res.ok) return [];
+  const j = (await res.json().catch(() => null)) as Record<string, unknown> | unknown[] | null;
+  const rows = (Array.isArray(j) ? j : ((j as { data?: unknown[]; models?: unknown[] } | null)?.data ?? (j as { models?: unknown[] } | null)?.models ?? [])) as Record<string, any>[];
+  return rows
+    .map((it): ModelInfo | null => {
+      const id = String(it.id ?? it.name ?? "");
+      if (!id) return null;
+      const created = typeof it.created === "number" ? it.created : it.created_at ? Math.floor(Date.parse(String(it.created_at)) / 1000) : undefined;
+      const modality = [...(it.architecture?.input_modalities ?? []), String(it.architecture?.modality ?? "")].join(",");
+      const vision = it.capabilities?.vision === true || /image/.test(modality) ? true : undefined;
+      const free = it.pricing ? Number(it.pricing.prompt) === 0 && Number(it.pricing.completion) === 0 : undefined;
+      return { id, created, vision, free };
+    })
+    .filter((m): m is ModelInfo => m !== null);
+}
+
+/** Procura um modelo que lê imagem entre os que a chave enxerga. */
+export async function discoverModel(p: AiProvider, key: string): Promise<string | null> {
+  return pickVisionModel(p, await listModels(p, key));
+}
+
+/**
+ * Como callVision, mas se a IA disser que o modelo foi aposentado/não existe, procura o modelo
+ * atual na própria conta, tenta de novo e guarda o que funcionou (o Gemini faz isso por conta própria).
+ */
+export async function callVisionResilient(
+  p: AiProvider,
+  key: string,
+  model: string,
+  system: string,
+  userText: string,
+  dataUrl: string,
+): Promise<string> {
+  try {
+    return await callVision(p, key, model, system, userText, dataUrl);
+  } catch (e) {
+    if (!(e instanceof ProviderCallError) || e.failure !== "model" || p === "gemini") throw e;
+    const better = await discoverModel(p, key);
+    if (!better || better === model) throw e;
+    const out = await callVision(p, key, better, system, userText, dataUrl);
+    await rememberModel(p, better);
+    return out;
+  }
 }
 
 /** Guarda o modelo que funcionou (só quando a pessoa não escolheu um na mão). */

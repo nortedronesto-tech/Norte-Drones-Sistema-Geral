@@ -10,8 +10,8 @@ import {
   applyOutcome,
   cleanKey,
   detectProvider,
-  discoverGeminiModel,
-  listGeminiModels,
+  discoverModel,
+  listModels,
   loadAiConfig,
   modelFor,
   pingProvider,
@@ -24,6 +24,9 @@ export const dynamic = "force-dynamic";
 
 const fail = (error: string, status = 400) => NextResponse.json({ error }, { status });
 const providerField = z.enum(PROVIDER_IDS);
+
+// Nestas IAs a lista de modelos da conta é completa; nas demais (Together, Fireworks, NVIDIA…) só se troca de modelo se a leitura falhar.
+const AUTHORITATIVE = new Set<AiProvider>(["gemini", "groq", "openrouter", "mistral", "openai", "anthropic", "grok"]);
 
 /** Tudo que a tela precisa: nunca inclui o valor de uma chave, só se existe e o final dela. */
 async function snapshot() {
@@ -66,19 +69,22 @@ async function testAndRecord(p: AiProvider, key: string): Promise<{ ok: boolean;
   try {
     await pingProvider(p, key, cfg.models[p]);
     let note = "";
-    if (p === "gemini") {
-      // o Google aposenta modelos: confere se o modelo configurado ainda existe para esta chave
-      const list = await listGeminiModels(key);
+    // IAs cuja lista de modelos é confiável: confere se o modelo configurado ainda existe para esta chave
+    if (AUTHORITATIVE.has(p)) {
+      const list = await listModels(p, key);
       const current = modelFor(cfg, p);
-      const exists = list.some((m) => m.name === `models/${current}`);
-      if (list.length && !exists && !cfg.models[p]?.trim()) {
-        const better = await discoverGeminiModel(key);
-        if (better) {
-          cfg.models[p] = better;
-          note = ` O modelo padrão (${current}) não está mais disponível, então troquei para ${better}.`;
+      if (list.length && !list.some((m) => m.id === current)) {
+        if (!cfg.models[p]?.trim()) {
+          const better = await discoverModel(p, key);
+          if (better) {
+            cfg.models[p] = better;
+            note = ` O modelo padrão (${current}) não está mais disponível, então troquei para ${better}.`;
+          } else {
+            note = ` Atenção: não achei um modelo com leitura de imagem para esta chave (o padrão ${current} não aparece na lista).`;
+          }
+        } else {
+          note = ` Atenção: o modelo "${current}" que você definiu não aparece para esta chave. Apague o campo Modelo para o sistema escolher sozinho.`;
         }
-      } else if (list.length && !exists) {
-        note = ` Atenção: o modelo "${current}" que você definiu não aparece para esta chave. Apague o campo Modelo para o sistema escolher sozinho.`;
       }
     }
     const at = new Date().toISOString();

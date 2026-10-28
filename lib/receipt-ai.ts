@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/constants";
-import { PROVIDER_LABEL, ProviderCallError, callVision, runHybrid, type AiProvider } from "@/lib/ai-providers";
+import { PROVIDER_LABEL, ProviderCallError, callVisionResilient, runHybrid, type AiProvider } from "@/lib/ai-providers";
 
 const resultSchema = z.object({
   legible: z.boolean().optional(),
@@ -58,7 +58,7 @@ class UnreadableReceipt extends Error {}
 export async function readReceipt(dataUrl: string): Promise<ReceiptReading & { provider: AiProvider }> {
   const out = await runHybrid(
     async (p, key, model) => {
-      const text = await callVision(p, key, model, SYSTEM, "Leia este comprovante e responda só o JSON.", dataUrl);
+      const text = await callVisionResilient(p, key, model, SYSTEM, "Leia este comprovante e responda só o JSON.", dataUrl);
       let raw: unknown;
       try {
         raw = parseJsonLoose(text);

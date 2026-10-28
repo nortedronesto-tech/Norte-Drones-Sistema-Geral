@@ -335,3 +335,56 @@ test("Gemini: ranking devolve do mais novo ao mais antigo (para tentar outro qua
   const list = [gm("gemini-2.5-flash"), gm("gemini-3.8-flash"), gm("gemini-3.1-flash"), gm("gemini-3.8-flash-lite")];
   assert.deepEqual(rankGeminiModels(list), ["gemini-3.8-flash", "gemini-3.1-flash", "gemini-2.5-flash"]);
 });
+
+// ------------------------------------------------ escolha de modelo com visão (todas as IAs)
+import { pickVisionModel } from "../lib/ai-routing.ts";
+
+test("OpenRouter: escolhe o modelo GRATUITO mais novo que lê imagem", () => {
+  const m = [
+    { id: "openai/gpt-4o-mini", vision: true, created: 300 },
+    { id: "google/gemini-3.8-flash-exp:free", vision: true, free: true, created: 200 },
+    { id: "meta/llama-5-vision:free", vision: true, free: true, created: 250 },
+    { id: "some/text-only:free", vision: false, free: true, created: 999 },
+  ];
+  assert.equal(pickVisionModel("openrouter", m), "meta/llama-5-vision:free");
+});
+
+test("OpenRouter: sem gratuito, cai num modelo barato conhecido; sem nada seguro, null", () => {
+  assert.equal(pickVisionModel("openrouter", [{ id: "google/gemini-3.8-flash", vision: true, created: 1 }]), "google/gemini-3.8-flash");
+  assert.equal(pickVisionModel("openrouter", [{ id: "x/y", vision: true }]), null);
+});
+
+test("Mistral: usa o campo de visão e prefere 'small'", () => {
+  const m = [
+    { id: "mistral-large-latest", vision: true, created: 5 },
+    { id: "mistral-small-latest", vision: true, created: 4 },
+    { id: "codestral-latest", vision: false, created: 9 },
+  ];
+  assert.equal(pickVisionModel("mistral", m), "mistral-small-latest");
+});
+
+test("Groq: prefere Llama 4 Scout, depois Maverick; ignora whisper/guard/tts", () => {
+  const ids = ["whisper-large-v3", "llama-guard-4-12b", "meta-llama/llama-4-maverick-17b-128e-instruct", "meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile", "playai-tts"];
+  assert.equal(pickVisionModel("groq", ids.map((id) => ({ id }))), "meta-llama/llama-4-scout-17b-16e-instruct");
+  assert.equal(pickVisionModel("groq", ids.filter((i) => !i.includes("scout")).map((id) => ({ id }))), "meta-llama/llama-4-maverick-17b-128e-instruct");
+  assert.equal(pickVisionModel("groq", [{ id: "llama-3.3-70b-versatile" }]), null);
+});
+
+test("OpenAI: usa o mini mais novo disponível", () => {
+  assert.equal(pickVisionModel("openai", [{ id: "gpt-4o-mini" }, { id: "gpt-4.1-mini" }]), "gpt-4.1-mini");
+  assert.equal(pickVisionModel("openai", [{ id: "gpt-4o-mini" }, { id: "gpt-5-mini" }]), "gpt-5-mini");
+  assert.equal(pickVisionModel("openai", [{ id: "text-embedding-3-small" }]), null);
+});
+
+test("Claude: prefere o Haiku mais novo; Grok: só modelos com visão; Together/NVIDIA etc.: heurística de visão", () => {
+  assert.equal(pickVisionModel("anthropic", [{ id: "claude-haiku-4-5", created: 1 }, { id: "claude-haiku-5-5", created: 2 }, { id: "claude-opus-5-5", created: 9 }]), "claude-haiku-5-5");
+  assert.equal(pickVisionModel("grok", [{ id: "grok-3", created: 5 }, { id: "grok-2-vision-1212", created: 3 }, { id: "grok-4", created: 9 }]), "grok-4");
+  assert.equal(pickVisionModel("together", [{ id: "Qwen/Qwen2.5-VL-72B-Instruct", created: 2 }, { id: "meta-llama/Llama-3.3-70B-Instruct-Turbo" }]), "Qwen/Qwen2.5-VL-72B-Instruct");
+  assert.equal(pickVisionModel("nvidia", [{ id: "nvidia/nv-embedqa-e5-v5" }]), null);
+});
+
+test("modelo descontinuado em Groq/OpenRouter também é 'model'", () => {
+  assert.equal(classifyFailure(400, "The model `llama-3.2-11b-vision-preview` has been decommissioned and is no longer supported."), "model");
+  assert.equal(classifyFailure(404, "No endpoints found for google/gemini-2.0-flash-exp:free."), "model");
+  assert.equal(classifyFailure(400, "google/foo is not a valid model ID"), "model");
+});

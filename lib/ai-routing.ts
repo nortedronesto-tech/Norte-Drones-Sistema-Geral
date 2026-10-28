@@ -117,7 +117,7 @@ export function classifyFailure(httpStatus: number | null, body: string): Failur
   if (httpStatus === 402) return "credit";
   if (CREDIT_RE.test(body) && [400, 403, 429].includes(httpStatus)) return "credit";
   // modelo aposentado (ex.: "no longer available to new users"): não é chave inválida
-  if ([400, 403, 404].includes(httpStatus) && /no longer available|deprecated|retired|is not found for api version|model.{0,40}not found/i.test(body)) return "model";
+  if ([400, 403, 404].includes(httpStatus) && /no longer available|no longer supported|decommission|deprecated|retired|is not found for api version|model.{0,40}(not found|does not exist)|not a valid model|model_not_found|no endpoints found/i.test(body)) return "model";
   if (httpStatus === 429 || /RESOURCE_EXHAUSTED/i.test(body)) return "rate";
   if (httpStatus === 401 || httpStatus === 403) return "invalid";
   if (httpStatus === 404 || (httpStatus === 400 && /model/i.test(body) && /not found|does not exist|unsupported|deprecated/i.test(body))) return "model";
@@ -265,4 +265,70 @@ export function rankGeminiModels(list: GeminiModelInfo[]): string[] {
 /** O flash mais novo (ou null). */
 export function pickGeminiModel(list: GeminiModelInfo[]): string | null {
   return rankGeminiModels(list)[0] ?? null;
+}
+
+// ---------------------------------------------------------------- escolha de modelo (todas as IAs)
+export type ModelInfo = {
+  id: string;
+  /** timestamp em segundos (quando a IA informa) — usado para preferir o mais novo */
+  created?: number;
+  /** a IA diz explicitamente que o modelo lê imagem */
+  vision?: boolean;
+  /** modelo gratuito (OpenRouter) */
+  free?: boolean;
+};
+
+const NOT_CHAT = /embed|whisper|tts|audio|speech|guard|moderat|rerank|transcri|realtime|dall|flux|stable|image-gen|imagen|sora|video|search|instruct-turbo-ft|bge|e5-/i;
+const VISION_HINT = /vl\b|-vl-|vision|llava|pixtral|molmo|llama-?4|gemma-?3|qwen.*vl|phi-.*vision|paligemma|internvl|minicpm-v/i;
+const byNewest = (a: ModelInfo, b: ModelInfo) => (b.created ?? 0) - (a.created ?? 0);
+
+/**
+ * Escolhe um modelo que LÊ IMAGEM entre os que a chave enxerga. Os nomes mudam o tempo todo e
+ * modelos antigos são aposentados; por isso o sistema procura em vez de depender de um nome fixo.
+ * Devolve null se não achar nada com segurança.
+ */
+export function pickVisionModel(provider: AiProvider, models: ModelInfo[]): string | null {
+  const list = models.filter((m) => m.id && !NOT_CHAT.test(m.id));
+  const first = (xs: ModelInfo[]) => xs[0]?.id ?? null;
+
+  switch (provider) {
+    case "openrouter": {
+      const vision = list.filter((m) => m.vision);
+      const free = vision.filter((m) => m.free || /:free$/.test(m.id)).sort(byNewest);
+      if (free.length) return first(free);
+      return first(vision.filter((m) => /gemini.*flash|gpt-.*mini|haiku/.test(m.id)).sort(byNewest));
+    }
+    case "mistral": {
+      const vision = list.filter((m) => m.vision).sort(byNewest);
+      return first(vision.filter((m) => /small/.test(m.id))) ?? first(vision.filter((m) => /medium/.test(m.id))) ?? first(vision);
+    }
+    case "groq": {
+      const pref = [/llama-4-scout/, /llama-4-maverick/, /vision/, /llava/];
+      for (const re of pref) {
+        const hit = list.filter((m) => re.test(m.id)).sort(byNewest);
+        if (hit.length) return first(hit);
+      }
+      return first(list.filter((m) => VISION_HINT.test(m.id)).sort(byNewest));
+    }
+    case "grok":
+      return first(list.filter((m) => /vision|grok-[4-9]/.test(m.id) && !/image|imagine/.test(m.id)).sort(byNewest));
+    case "openai": {
+      const ids = new Set(list.map((m) => m.id));
+      return ["gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"].find((id) => ids.has(id)) ?? null;
+    }
+    case "anthropic": {
+      const claude = list.filter((m) => m.id.startsWith("claude-")).sort(byNewest);
+      return first(claude.filter((m) => /haiku/.test(m.id))) ?? first(claude.filter((m) => /sonnet/.test(m.id)));
+    }
+    case "cohere":
+      return first(list.filter((m) => /vision/.test(m.id)).sort(byNewest));
+    case "gemini":
+      return pickGeminiModel(list.map((m) => ({ name: m.id.startsWith("models/") ? m.id : `models/${m.id}` })));
+    default: {
+      // together, fireworks, nvidia, deepinfra, huggingface
+      const hit = list.filter((m) => VISION_HINT.test(m.id));
+      const instruct = hit.filter((m) => /instruct|chat|it\b/i.test(m.id));
+      return first((instruct.length ? instruct : hit).sort(byNewest));
+    }
+  }
 }
