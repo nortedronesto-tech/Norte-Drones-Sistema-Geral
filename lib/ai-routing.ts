@@ -107,7 +107,7 @@ export function normalizeConfig(raw: unknown): AiConfig {
   };
 }
 
-export type Failure = "credit" | "rate" | "invalid" | "model" | "transient" | "other";
+export type Failure = "credit" | "rate" | "invalid" | "model" | "transient" | "empty" | "other";
 
 const CREDIT_RE = /insufficient_quota|exceeded your current quota|billing|credit|balance|payment required|spending limit|out of funds/i;
 
@@ -181,6 +181,7 @@ export function applyOutcome(cfg: AiConfig, p: AiProvider, error: CallError | nu
       message:
         error.failure === "model" ? "modelo indisponível (ajuste o modelo)"
         : error.failure === "transient" ? "sobrecarregada ou sem resposta agora (temporário)"
+        : error.failure === "empty" ? "o modelo não devolveu texto (vou tentar outro)"
         : error.message.slice(0, 120),
       at,
       lastOkAt,
@@ -282,53 +283,78 @@ const NOT_CHAT = /embed|whisper|tts|audio|speech|guard|moderat|rerank|transcri|r
 const VISION_HINT = /vl\b|-vl-|vision|llava|pixtral|molmo|llama-?4|gemma-?3|qwen.*vl|phi-.*vision|paligemma|internvl|minicpm-v/i;
 const byNewest = (a: ModelInfo, b: ModelInfo) => (b.created ?? 0) - (a.created ?? 0);
 
+const AVOID = /safety|guard|lyria|veo|music|moderation|reasoning|thinking|-r1\b|\bo[13]\b|omni|note-preview/i;
+
+/** Famílias de modelo que já se mostraram boas em ler nota/recibo, da melhor para a pior. */
+const TRUSTED: RegExp[] = [
+  /gemini.*flash/i,
+  /gemma-?\d.*-it/i,
+  /qwen.*vl/i,
+  /llama.*(vision|-4-|4-)/i,
+  /mistral.*(small|medium)|pixtral/i,
+  /gpt-.*mini/i,
+  /claude.*haiku/i,
+];
+const familyRank = (id: string) => {
+  const i = TRUSTED.findIndex((re) => re.test(id));
+  return i === -1 ? TRUSTED.length : i;
+};
+/** Ordena: família confiável primeiro; dentro dela, o mais novo. */
+const byTrust = (a: ModelInfo, b: ModelInfo) => familyRank(a.id) - familyRank(b.id) || byNewest(a, b);
+const ids = (xs: ModelInfo[]) => [...new Set(xs.map((m) => m.id))];
+
 /**
- * Escolhe um modelo que LÊ IMAGEM entre os que a chave enxerga. Os nomes mudam o tempo todo e
- * modelos antigos são aposentados; por isso o sistema procura em vez de depender de um nome fixo.
- * Devolve null se não achar nada com segurança.
+ * Lista, do melhor para o pior, os modelos que LEEM IMAGEM entre os que a chave enxerga.
+ * Os nomes mudam o tempo todo e modelos antigos são aposentados; por isso o sistema procura em vez de
+ * depender de um nome fixo. Modelos "de raciocínio" ficam por último/fora (gastam o limite pensando e
+ * devolvem resposta vazia) e o mais novo NÃO é automaticamente o melhor: famílias já testadas vêm antes.
  */
-export function pickVisionModel(provider: AiProvider, models: ModelInfo[]): string | null {
-  const list = models.filter((m) => m.id && !NOT_CHAT.test(m.id));
-  const first = (xs: ModelInfo[]) => xs[0]?.id ?? null;
+export function rankVisionModels(provider: AiProvider, models: ModelInfo[]): string[] {
+  const list = models.filter((m) => m.id && !NOT_CHAT.test(m.id) && !AVOID.test(m.id));
 
   switch (provider) {
     case "openrouter": {
       const vision = list.filter((m) => m.vision);
-      const free = vision.filter((m) => m.free || /:free$/.test(m.id)).sort(byNewest);
-      if (free.length) return first(free);
-      return first(vision.filter((m) => /gemini.*flash|gpt-.*mini|haiku/.test(m.id)).sort(byNewest));
+      const free = vision.filter((m) => m.free || /:free$/.test(m.id)).sort(byTrust);
+      const cheap = vision.filter((m) => !free.includes(m) && /gemini.*flash|gpt-.*mini|haiku/.test(m.id)).sort(byNewest);
+      return ids([...free, ...cheap]);
     }
     case "mistral": {
       const vision = list.filter((m) => m.vision).sort(byNewest);
-      return first(vision.filter((m) => /small/.test(m.id))) ?? first(vision.filter((m) => /medium/.test(m.id))) ?? first(vision);
+      return ids([...vision.filter((m) => /small/.test(m.id)), ...vision.filter((m) => /medium/.test(m.id)), ...vision]);
     }
     case "groq": {
-      const pref = [/llama-4-scout/, /llama-4-maverick/, /vision/, /llava/];
-      for (const re of pref) {
-        const hit = list.filter((m) => re.test(m.id)).sort(byNewest);
-        if (hit.length) return first(hit);
-      }
-      return first(list.filter((m) => VISION_HINT.test(m.id)).sort(byNewest));
+      const out: ModelInfo[] = [];
+      for (const re of [/llama-4-scout/, /llama-4-maverick/, /vision/, /llava/]) out.push(...list.filter((m) => re.test(m.id)).sort(byNewest));
+      out.push(...list.filter((m) => VISION_HINT.test(m.id)).sort(byTrust));
+      return ids(out);
     }
     case "grok":
-      return first(list.filter((m) => /vision|grok-[4-9]/.test(m.id) && !/image|imagine/.test(m.id)).sort(byNewest));
+      return ids(list.filter((m) => /vision|grok-[4-9]/.test(m.id) && !/image|imagine/.test(m.id)).sort(byNewest));
     case "openai": {
-      const ids = new Set(list.map((m) => m.id));
-      return ["gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"].find((id) => ids.has(id)) ?? null;
+      const have = new Set(list.map((m) => m.id));
+      return ["gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"].filter((id) => have.has(id));
     }
     case "anthropic": {
       const claude = list.filter((m) => m.id.startsWith("claude-")).sort(byNewest);
-      return first(claude.filter((m) => /haiku/.test(m.id))) ?? first(claude.filter((m) => /sonnet/.test(m.id)));
+      return ids([...claude.filter((m) => /haiku/.test(m.id)), ...claude.filter((m) => /sonnet/.test(m.id))]);
     }
     case "cohere":
-      return first(list.filter((m) => /vision/.test(m.id)).sort(byNewest));
-    case "gemini":
-      return pickGeminiModel(list.map((m) => ({ name: m.id.startsWith("models/") ? m.id : `models/${m.id}` })));
+      return ids(list.filter((m) => /vision/.test(m.id)).sort(byNewest));
+    case "gemini": {
+      const r = rankGeminiModels(list.map((m) => ({ name: m.id.startsWith("models/") ? m.id : `models/${m.id}` })));
+      return r;
+    }
     default: {
       // together, fireworks, nvidia, deepinfra, huggingface
       const hit = list.filter((m) => VISION_HINT.test(m.id));
       const instruct = hit.filter((m) => /instruct|chat|it\b/i.test(m.id));
-      return first((instruct.length ? instruct : hit).sort(byNewest));
+      return ids([...instruct.sort(byTrust), ...hit.sort(byTrust)]);
     }
   }
+}
+
+/** O melhor modelo com leitura de imagem (ou null). */
+export function pickVisionModel(provider: AiProvider, models: ModelInfo[]): string | null {
+  return rankVisionModels(provider, models)[0] ?? null;
 }

@@ -10,6 +10,7 @@ import {
   pickGeminiModel,
   pickVisionModel,
   rankGeminiModels,
+  rankVisionModels,
   type AiConfig,
   type AiProvider,
   type Attempt,
@@ -254,14 +255,22 @@ export async function callVision(
     body.max_completion_tokens = 600;
     body.response_format = { type: "json_object" };
   } else {
-    body.max_tokens = 600;
+    body.max_tokens = 1500; // folga: alguns modelos gastam parte do limite pensando
     body.temperature = 0;
   }
   const text = await post(`${meta.baseUrl}/chat/completions`, { Authorization: `Bearer ${key}` }, body);
-  const j = JSON.parse(text) as { choices?: { message?: { content?: string | { text?: string }[] } }[] };
-  const c = j.choices?.[0]?.message?.content;
-  const out = typeof c === "string" ? c : Array.isArray(c) ? c.map((x) => x.text ?? "").join("") : "";
-  if (!out) throw new ProviderCallError("resposta vazia", "other", 200);
+  const j = JSON.parse(text) as {
+    choices?: { message?: { content?: string | { text?: string }[]; reasoning?: string; reasoning_content?: string } }[];
+  };
+  const msg = j.choices?.[0]?.message;
+  const c = msg?.content;
+  let out = typeof c === "string" ? c : Array.isArray(c) ? c.map((x) => x.text ?? "").join("") : "";
+  // Modelos de "raciocínio" às vezes deixam o conteúdo vazio e põem a resposta no campo de raciocínio.
+  if (!out.trim()) {
+    const alt = `${msg?.reasoning ?? ""}${msg?.reasoning_content ?? ""}`;
+    if (alt.includes("{") && alt.includes("}")) out = alt;
+  }
+  if (!out.trim()) throw new ProviderCallError("resposta vazia", "empty", 200);
   return out;
 }
 
@@ -332,8 +341,9 @@ export async function discoverModel(p: AiProvider, key: string): Promise<string 
 }
 
 /**
- * Como callVision, mas se a IA disser que o modelo foi aposentado/não existe, procura o modelo
- * atual na própria conta, tenta de novo e guarda o que funcionou (o Gemini faz isso por conta própria).
+ * Como callVision, mas se a IA disser que o modelo foi aposentado/não existe — ou o modelo devolver
+ * resposta vazia — procura os modelos atuais da própria conta (os melhores primeiro), tenta até 3 e
+ * guarda o que funcionou. (O Gemini faz isso por conta própria dentro do callVision.)
  */
 export async function callVisionResilient(
   p: AiProvider,
@@ -346,12 +356,19 @@ export async function callVisionResilient(
   try {
     return await callVision(p, key, model, system, userText, dataUrl);
   } catch (e) {
-    if (!(e instanceof ProviderCallError) || e.failure !== "model" || p === "gemini") throw e;
-    const better = await discoverModel(p, key);
-    if (!better || better === model) throw e;
-    const out = await callVision(p, key, better, system, userText, dataUrl);
-    await rememberModel(p, better);
-    return out;
+    if (!(e instanceof ProviderCallError) || (e.failure !== "model" && e.failure !== "empty") || p === "gemini") throw e;
+    const ranked = rankVisionModels(p, await listModels(p, key)).filter((m) => m !== model);
+    for (const alt of ranked.slice(0, 3)) {
+      try {
+        const out = await callVision(p, key, alt, system, userText, dataUrl);
+        await rememberModel(p, alt);
+        return out;
+      } catch (inner) {
+        // só vale insistir em outro modelo se este também foi "modelo ruim"; chave/crédito/limite param aqui
+        if (!(inner instanceof ProviderCallError) || (inner.failure !== "model" && inner.failure !== "empty")) throw inner;
+      }
+    }
+    throw e;
   }
 }
 

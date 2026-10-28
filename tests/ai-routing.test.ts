@@ -337,16 +337,35 @@ test("Gemini: ranking devolve do mais novo ao mais antigo (para tentar outro qua
 });
 
 // ------------------------------------------------ escolha de modelo com visão (todas as IAs)
-import { pickVisionModel } from "../lib/ai-routing.ts";
+import { pickVisionModel, rankVisionModels } from "../lib/ai-routing.ts";
 
-test("OpenRouter: escolhe o modelo GRATUITO mais novo que lê imagem", () => {
+test("OpenRouter: entre os gratuitos com visão, família confiável vem antes do 'mais novo'", () => {
   const m = [
     { id: "openai/gpt-4o-mini", vision: true, created: 300 },
     { id: "google/gemini-3.8-flash-exp:free", vision: true, free: true, created: 200 },
     { id: "meta/llama-5-vision:free", vision: true, free: true, created: 250 },
     { id: "some/text-only:free", vision: false, free: true, created: 999 },
   ];
-  assert.equal(pickVisionModel("openrouter", m), "meta/llama-5-vision:free");
+  assert.equal(pickVisionModel("openrouter", m), "google/gemini-3.8-flash-exp:free");
+});
+
+test("OpenRouter (lista REAL de hoje): não escolhe modelo de raciocínio, segurança nem geradores", () => {
+  const real = [
+    { id: "nvidia/nemotron-3.5-super-vl:free", created: 1792076662 },
+    { id: "dots-studio/dots-3-note-preview:free", created: 1786680361 },
+    { id: "thinkingmachines/inkling-small:free", created: 1785443117 },
+    { id: "nvidia/nemotron-3.5-content-safety:free", created: 1780581864 },
+    { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", created: 1777393095 },
+    { id: "google/gemma-4-26b-a4b-it:free", created: 1775227989 },
+    { id: "google/gemma-4-31b-it:free", created: 1775148486 },
+    { id: "google/lyria-3-pro-preview", created: 1774907286 },
+  ].map((m) => ({ ...m, vision: true, free: true }));
+  const ranked = rankVisionModels("openrouter", real);
+  assert.equal(ranked[0], "google/gemma-4-26b-a4b-it:free");
+  assert.equal(ranked[1], "google/gemma-4-31b-it:free");
+  for (const bad of ["content-safety", "reasoning", "lyria", "note-preview"]) assert.ok(!ranked.some((id) => id.includes(bad)), bad);
+  // o 'super-vl' (raciocina e devolve vazio) só entra depois das famílias confiáveis
+  assert.ok(ranked.indexOf("nvidia/nemotron-3.5-super-vl:free") > 1);
 });
 
 test("OpenRouter: sem gratuito, cai num modelo barato conhecido; sem nada seguro, null", () => {

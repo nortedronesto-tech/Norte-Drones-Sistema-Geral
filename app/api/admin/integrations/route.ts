@@ -80,7 +80,8 @@ async function testAndRecord(p: AiProvider, key: string): Promise<{ ok: boolean;
             cfg.models[p] = better;
             note = ` O modelo padrão (${current}) não está mais disponível, então troquei para ${better}.`;
           } else {
-            note = ` Atenção: não achei um modelo com leitura de imagem para esta chave (o padrão ${current} não aparece na lista).`;
+            const seen = list.slice(0, 12).map((m) => m.id).join(", ");
+            note = ` Atenção: não achei, entre os ${list.length} modelos desta chave, nenhum com leitura de imagem (o padrão ${current} não aparece). Modelos vistos: ${seen}. Se algum deles lê imagem, digite o nome no campo Modelo (avançado).`;
           }
         } else {
           note = ` Atenção: o modelo "${current}" que você definiu não aparece para esta chave. Apague o campo Modelo para o sistema escolher sozinho.`;
