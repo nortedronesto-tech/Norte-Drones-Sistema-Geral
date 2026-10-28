@@ -7,6 +7,7 @@ import {
   classifyFailure,
   normalizeConfig,
   orchestrate,
+  pickGeminiModel,
   type AiConfig,
   type AiProvider,
   type Attempt,
@@ -37,7 +38,7 @@ type Meta = {
  * o administrador pode trocar em Admin → Integrações (campo "Modelo") sem mexer no código.
  */
 export const PROVIDER_META: Record<AiProvider, Meta> = {
-  gemini: { secret: "GEMINI_API_KEY", kind: "gemini", defaultModel: "gemini-2.5-flash", keysUrl: "https://aistudio.google.com/apikey", free: "costuma ter faixa gratuita diária" },
+  gemini: { secret: "GEMINI_API_KEY", kind: "gemini", defaultModel: "gemini-3.8-flash", keysUrl: "https://aistudio.google.com/apikey", free: "costuma ter faixa gratuita diária" },
   grok: { secret: "XAI_API_KEY", kind: "openai", defaultModel: "grok-2-vision-latest", baseUrl: "https://api.x.ai/v1", keysUrl: "https://console.x.ai", free: "pago por uso" },
   groq: { secret: "GROQ_API_KEY", kind: "openai", defaultModel: "meta-llama/llama-4-scout-17b-16e-instruct", baseUrl: "https://api.groq.com/openai/v1", keysUrl: "https://console.groq.com/keys", free: "costuma ter faixa gratuita" },
   openrouter: { secret: "OPENROUTER_API_KEY", kind: "openai", defaultModel: "google/gemini-2.0-flash-exp:free", baseUrl: "https://openrouter.ai/api/v1", keysUrl: "https://openrouter.ai/keys", free: "tem modelos gratuitos (terminam em :free)", ping: { url: "https://openrouter.ai/api/v1/auth/key" } },
@@ -130,19 +131,33 @@ export async function callVision(
   const meta = PROVIDER_META[p];
 
   if (meta.kind === "gemini") {
-    const text = await post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      { "x-goog-api-key": key },
-      {
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: "user", parts: [{ text: userText }, { inline_data: { mime_type: mime, data: b64 } }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 600 },
-      },
-    );
-    const j = JSON.parse(text) as { candidates?: { content?: { parts?: { text?: string }[] } }[]; promptFeedback?: { blockReason?: string } };
-    const out = j.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") ?? "";
-    if (!out) throw new ProviderCallError(j.promptFeedback?.blockReason ? `bloqueado (${j.promptFeedback.blockReason})` : "resposta vazia", "other", 200);
-    return out;
+    const generate = async (mdl: string) => {
+      const text = await post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent`,
+        { "x-goog-api-key": key },
+        {
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: userText }, { inline_data: { mime_type: mime, data: b64 } }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 600 },
+        },
+      );
+      const j = JSON.parse(text) as { candidates?: { content?: { parts?: { text?: string }[] } }[]; promptFeedback?: { blockReason?: string } };
+      const out = j.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") ?? "";
+      if (!out) throw new ProviderCallError(j.promptFeedback?.blockReason ? `bloqueado (${j.promptFeedback.blockReason})` : "resposta vazia", "other", 200);
+      return out;
+    };
+    try {
+      return await generate(model);
+    } catch (e) {
+      // O Google aposenta modelos a cada poucos meses ("no longer available to new users"):
+      // descobre o flash mais novo da conta, tenta de novo e guarda para as próximas leituras.
+      if (!(e instanceof ProviderCallError) || e.failure !== "model") throw e;
+      const better = await discoverGeminiModel(key);
+      if (!better || better === model) throw e;
+      const out = await generate(better);
+      await rememberModel("gemini", better);
+      return out;
+    }
   }
 
   if (meta.kind === "anthropic") {
@@ -219,6 +234,34 @@ export async function callVision(
   const out = typeof c === "string" ? c : Array.isArray(c) ? c.map((x) => x.text ?? "").join("") : "";
   if (!out) throw new ProviderCallError("resposta vazia", "other", 200);
   return out;
+}
+
+/** Lista os modelos que a chave enxerga e escolhe o Gemini flash mais novo. */
+export async function listGeminiModels(key: string): Promise<{ name: string; methods?: string[] }[]> {
+  let res: Response;
+  try {
+    res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
+      headers: { "x-goog-api-key": key },
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    return [];
+  }
+  if (!res.ok) return [];
+  const j = (await res.json().catch(() => ({}))) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+  return (j.models ?? []).map((m) => ({ name: m.name, methods: m.supportedGenerationMethods }));
+}
+
+export async function discoverGeminiModel(key: string): Promise<string | null> {
+  return pickGeminiModel(await listGeminiModels(key));
+}
+
+/** Guarda o modelo que funcionou (só quando a pessoa não escolheu um na mão). */
+async function rememberModel(p: AiProvider, model: string) {
+  const cfg = await loadAiConfig();
+  if (cfg.models[p]?.trim()) return; // escolha manual do administrador vale mais
+  cfg.models[p] = model;
+  await saveAiConfig(cfg).catch(() => undefined);
 }
 
 /** Teste barato da chave: lista modelos / consulta a conta (sem gastar crédito; "chat" usa 1 token). */

@@ -288,3 +288,44 @@ test("HEIC: reconhece pelo nome/tipo declarado", () => {
   assert.equal(looksHeicByName("x.jpg", "image/heic"), true);
   assert.equal(looksHeicByName("IMG_3303.jpeg", "image/jpeg"), false);
 });
+
+// ------------------------------------------------ escolha do modelo Gemini
+import { pickGeminiModel } from "../lib/ai-routing.ts";
+
+const gm = (name: string, methods: string[] = ["generateContent"]) => ({ name: `models/${name}`, methods });
+
+test("Gemini: escolhe o flash de maior versão", () => {
+  const list = [gm("gemini-2.0-flash"), gm("gemini-2.5-flash"), gm("gemini-3.8-flash"), gm("gemini-3.1-flash")];
+  assert.equal(pickGeminiModel(list), "gemini-3.8-flash");
+});
+
+test("Gemini: ignora lite, imagem, áudio, embedding e modelos sem generateContent", () => {
+  const list = [
+    gm("gemini-4.0-flash-lite"),
+    gm("gemini-4.0-flash-image"),
+    gm("gemini-4.0-flash-live-001"),
+    gm("gemini-4.0-flash-tts"),
+    gm("gemini-embedding-001", ["embedContent"]),
+    gm("gemini-3.0-flash", ["countTokens"]),
+    gm("gemini-2.5-flash"),
+  ];
+  assert.equal(pickGeminiModel(list), "gemini-2.5-flash");
+});
+
+test("Gemini: prefere versão estável a preview quando a versão é a mesma", () => {
+  assert.equal(pickGeminiModel([gm("gemini-3.8-flash-preview-09-2026"), gm("gemini-3.8-flash")]), "gemini-3.8-flash");
+});
+
+test("Gemini: aceita só preview se não houver estável; lista vazia devolve null", () => {
+  assert.equal(pickGeminiModel([gm("gemini-3.9-flash-preview-10-2026")]), "gemini-3.9-flash-preview-10-2026");
+  assert.equal(pickGeminiModel([]), null);
+  assert.equal(pickGeminiModel([gm("gemma-3-27b-it"), gm("text-embedding-004", ["embedContent"])]), null);
+});
+
+test("modelo aposentado é 'model' (e não 'invalid'), mesmo com status 403 ou 400", () => {
+  const msg = "This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash";
+  assert.equal(classifyFailure(404, msg), "model");
+  assert.equal(classifyFailure(403, msg), "model");
+  assert.equal(classifyFailure(400, msg), "model");
+  assert.equal(classifyFailure(403, "API key not valid. Please pass a valid API key."), "invalid");
+});

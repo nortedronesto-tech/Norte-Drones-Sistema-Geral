@@ -116,6 +116,8 @@ export function classifyFailure(httpStatus: number | null, body: string): Failur
   if (httpStatus === null) return "transient"; // timeout / sem conexão
   if (httpStatus === 402) return "credit";
   if (CREDIT_RE.test(body) && [400, 403, 429].includes(httpStatus)) return "credit";
+  // modelo aposentado (ex.: "no longer available to new users"): não é chave inválida
+  if ([400, 403, 404].includes(httpStatus) && /no longer available|deprecated|retired|is not found for api version|model.{0,40}not found/i.test(body)) return "model";
   if (httpStatus === 429 || /RESOURCE_EXHAUSTED/i.test(body)) return "rate";
   if (httpStatus === 401 || httpStatus === 403) return "invalid";
   if (httpStatus === 404 || (httpStatus === 400 && /model/i.test(body) && /not found|does not exist|unsupported|deprecated/i.test(body))) return "model";
@@ -232,4 +234,27 @@ export async function orchestrate<T>(
   }
   if (attempts.length) await deps.save(cfg).catch(() => undefined);
   return { attempts, none: queue.length === 0 };
+}
+
+// ---------------------------------------------------------------- modelo do Gemini
+export type GeminiModelInfo = { name: string; methods?: string[] };
+
+/**
+ * Escolhe, entre os modelos que a conta enxerga, o "flash" mais novo que gera texto a partir de imagem.
+ * Os nomes do Google mudam a cada poucos meses (2.5 → 3.8 …) e modelos antigos saem do ar para contas
+ * novas; por isso o sistema descobre sozinho em vez de depender de um nome fixo.
+ */
+export function pickGeminiModel(list: GeminiModelInfo[]): string | null {
+  const BAD = /lite|8b|image|tts|live|audio|embed|thinking|robotics|computer|learnlm|gemma|aqa|imagen|veo|native/i;
+  const candidates = list
+    .filter((m) => /^models\/gemini-\d/.test(m.name) && /flash/.test(m.name) && !BAD.test(m.name))
+    .filter((m) => !m.methods || m.methods.includes("generateContent"))
+    .map((m) => {
+      const id = m.name.replace(/^models\//, "");
+      const version = Number(/^gemini-(\d+(?:\.\d+)?)/.exec(id)?.[1] ?? 0);
+      const preview = /preview|exp|latest\b/i.test(id) && !/latest$/i.test(id) ? 1 : 0; // estável vale mais que preview
+      return { id, version, preview };
+    });
+  candidates.sort((a, b) => b.version - a.version || a.preview - b.preview || a.id.length - b.id.length);
+  return candidates[0]?.id ?? null;
 }

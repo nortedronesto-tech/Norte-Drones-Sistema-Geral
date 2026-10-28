@@ -10,6 +10,8 @@ import {
   applyOutcome,
   cleanKey,
   detectProvider,
+  discoverGeminiModel,
+  listGeminiModels,
   loadAiConfig,
   modelFor,
   pingProvider,
@@ -63,10 +65,26 @@ async function testAndRecord(p: AiProvider, key: string): Promise<{ ok: boolean;
   const cfg = await loadAiConfig();
   try {
     await pingProvider(p, key, cfg.models[p]);
+    let note = "";
+    if (p === "gemini") {
+      // o Google aposenta modelos: confere se o modelo configurado ainda existe para esta chave
+      const list = await listGeminiModels(key);
+      const current = modelFor(cfg, p);
+      const exists = list.some((m) => m.name === `models/${current}`);
+      if (list.length && !exists && !cfg.models[p]?.trim()) {
+        const better = await discoverGeminiModel(key);
+        if (better) {
+          cfg.models[p] = better;
+          note = ` O modelo padrão (${current}) não está mais disponível, então troquei para ${better}.`;
+        }
+      } else if (list.length && !exists) {
+        note = ` Atenção: o modelo "${current}" que você definiu não aparece para esta chave. Apague o campo Modelo para o sistema escolher sozinho.`;
+      }
+    }
     const at = new Date().toISOString();
     cfg.status[p] = { state: "ok", at, lastOkAt: at };
     await saveAiConfig(cfg).catch(() => undefined);
-    return { ok: true, message: `${PROVIDER_LABEL[p]}: chave válida. Modelo usado nas leituras: ${modelFor(cfg, p)}.` };
+    return { ok: true, message: `${PROVIDER_LABEL[p]}: chave válida. Modelo usado nas leituras: ${modelFor(cfg, p)}.${note}` };
   } catch (e) {
     const err = e instanceof ProviderCallError ? e : new ProviderCallError("erro", "other", null);
     await saveAiConfig(applyOutcome(cfg, p, err)).catch(() => undefined);
