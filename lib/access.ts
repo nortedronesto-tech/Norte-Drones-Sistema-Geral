@@ -38,8 +38,15 @@ export const getAccess = cache(async (): Promise<Access | null> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: roleData } = await supabase.rpc("my_role");
-  const role = (ROLES as string[]).includes(roleData as string) ? (roleData as Role) : null;
+  const { data: roleData, error: roleError } = await supabase.rpc("my_role");
+  let role = (ROLES as string[]).includes(roleData as string) ? (roleData as Role) : null;
+
+  // Banco ainda sem a migração 0005 (função my_role inexistente): mantém o acesso antigo,
+  // em que todo sócio ativo (e-mail em partners) tinha acesso total. Some após rodar a 0005.
+  if (roleError && !role) {
+    const { data: legacy } = await supabase.from("partners").select("email");
+    if (legacy?.some((p) => p.email?.toLowerCase() === user.email?.toLowerCase())) role = "socio";
+  }
 
   let name = "";
   if (role) {
