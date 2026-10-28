@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  PROVIDER_IDS,
+  cleanKey,
   classifyFailure,
   detectProvider,
   normalizeConfig,
@@ -19,10 +21,45 @@ test("detecta Gemini, Grok, Groq e OpenAI pelo formato da chave", () => {
   assert.equal((detectProvider(k("sk-proj-")) as any).provider, "openai");
 });
 
-test("chave da Anthropic não vira OpenAI por engano", () => {
-  const r = detectProvider(k("sk-ant-api03-"));
+test("reconhece o formato novo de chave do Google AI Studio (AQ.…)", () => {
+  const r = detectProvider("AQ.Ab8RN6" + "xYz0123456789_abcdefghijklmnopqrstuvwx");
+  assert.equal(r.ok, true);
+  assert.equal((r as any).provider, "gemini");
+});
+
+test("chave de formato desconhecido pede escolha manual (mensagem) e cleanKey aceita", () => {
+  const r = detectProvider("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
   assert.equal(r.ok, false);
-  assert.match((r as any).error, /Anthropic/);
+  assert.match((r as any).error, /Escolha de qual IA/);
+  const c = cleanKey("  'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' ");
+  assert.equal(c.ok, true);
+  assert.equal((c as any).key, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+  assert.equal(cleanKey("curta").ok, false);
+  assert.equal(cleanKey("tem espaco no meio da chave aqui ok").ok, false);
+  assert.equal(cleanKey("a".repeat(401)).ok, false);
+});
+
+test("detecta Claude, OpenRouter, Fireworks, Hugging Face, NVIDIA e Together; sk- genérico continua OpenAI", () => {
+  assert.equal((detectProvider(k("sk-ant-api03-")) as any).provider, "anthropic");
+  assert.equal((detectProvider(k("sk-or-v1-")) as any).provider, "openrouter");
+  assert.equal((detectProvider(k("fw_")) as any).provider, "fireworks");
+  assert.equal((detectProvider(k("hf_")) as any).provider, "huggingface");
+  assert.equal((detectProvider(k("nvapi-")) as any).provider, "nvidia");
+  assert.equal((detectProvider("a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90") as any).provider, "together");
+  assert.equal((detectProvider(k("sk-proj-")) as any).provider, "openai");
+});
+
+test("chaves sem prefixo (Mistral, Cohere, DeepInfra) não são adivinhadas: pedem escolha manual", () => {
+  for (const key of ["Zx9Qw3Er5Ty7Ui1Op2As4Df6Gh8Jk0Lm", "Zx9Qw3Er5Ty7Ui1Op2As4Df6Gh8Jk0LmNb5Vc7Xz"]) {
+    const r = detectProvider(key);
+    assert.equal(r.ok, false);
+    assert.match((r as any).error, /Escolha de qual IA/);
+  }
+});
+
+test("todas as IAs têm nome e a lista não tem repetidas", () => {
+  assert.equal(new Set(PROVIDER_IDS).size, PROVIDER_IDS.length);
+  assert.ok(PROVIDER_IDS.length >= 13);
 });
 
 test("rejeita chave curta, com espaço ou desconhecida; aceita aspas e espaços nas pontas", () => {
@@ -63,34 +100,40 @@ test("config vazia ou lixo vira config válida com todas as IAs na ordem padrão
   }
 });
 
-test("ordem do usuário é respeitada e IAs faltantes entram no fim", () => {
+test("ordem do usuário é respeitada e IAs faltantes entram no fim, na ordem padrão", () => {
   const c = normalizeConfig({ order: ["openai", "gemini", "x"] });
-  assert.deepEqual(c.order, ["openai", "gemini", "grok", "groq"]);
+  assert.deepEqual(c.order.slice(0, 2), ["openai", "gemini"]);
+  assert.equal(c.order.length, PROVIDER_IDS.length);
+  assert.deepEqual(c.order.slice(2), PROVIDER_IDS.filter((p) => p !== "openai" && p !== "gemini"));
 });
 
 const now = Date.parse("2026-10-30T12:00:00Z");
+const keyset = (...on: string[]) => Object.fromEntries(PROVIDER_IDS.map((p) => [p, on.includes(p)])) as Record<AiProvider, boolean>;
 const base = (patch: Partial<AiConfig> = {}): AiConfig => ({ ...normalizeConfig({ order: ["gemini", "grok", "openai"] }), ...patch });
 
 test("usa a 1ª com chave; ignora as sem chave", () => {
-  const c = pickCandidates(base(), (p) => p !== "gemini", now);
+  const has = keyset("grok", "openai", "groq");
+  const c = pickCandidates(base(), (p) => has[p], now);
   assert.deepEqual(c.first, ["grok", "openai", "groq"]);
 });
 
 test("IA sem crédito (de molho) vai para o fim; a próxima assume", () => {
   const cfg = base({ status: { gemini: { state: "limit", until: "2026-10-30T15:00:00Z", at: "x" } } });
-  const c = pickCandidates(cfg, () => true, now);
+  const has = keyset("gemini", "grok", "openai", "groq");
+  const c = pickCandidates(cfg, (p) => has[p], now);
   assert.deepEqual(c.first, ["grok", "openai", "groq"]);
   assert.deepEqual(c.later, ["gemini"]);
 });
 
 test("passado o tempo de molho, a IA volta sozinha para a frente", () => {
   const cfg = base({ status: { gemini: { state: "limit", until: "2026-10-30T11:00:00Z", at: "x" } } });
-  assert.deepEqual(pickCandidates(cfg, () => true, now).first[0], "gemini");
+  assert.deepEqual(pickCandidates(cfg, (p) => keyset("gemini", "grok")[p], now).first[0], "gemini");
 });
 
 test("chave inválida e IA desativada nunca são tentadas", () => {
   const cfg = base({ disabled: ["grok"], status: { gemini: { state: "invalid", at: "x" } } });
-  const c = pickCandidates(cfg, () => true, now);
+  const has = keyset("gemini", "grok", "groq", "openai");
+  const c = pickCandidates(cfg, (p) => has[p], now);
   assert.deepEqual(c.first, ["openai", "groq"]);
   assert.deepEqual(c.later, []);
 });
@@ -105,7 +148,7 @@ function fakeDeps(opts: { keys?: AiProvider[]; cfg?: Partial<AiConfig>; now?: nu
   const deps: OrchestrateDeps = {
     load: async () => structuredClone(saved),
     save: async (c) => { saved = structuredClone(c); },
-    hasKey: { gemini: keys.includes("gemini"), grok: keys.includes("grok"), groq: keys.includes("groq"), openai: keys.includes("openai") },
+    hasKey: Object.fromEntries(PROVIDER_IDS.map((p) => [p, keys.includes(p)])) as Record<AiProvider, boolean>,
     getKey: async (p) => (keys.includes(p) ? `key-${p}` : null),
     modelFor: (_c, p) => `model-${p}`,
     now: () => clock.t,

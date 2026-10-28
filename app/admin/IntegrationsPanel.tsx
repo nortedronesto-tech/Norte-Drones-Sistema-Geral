@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PROVIDER_LABEL, detectProvider, type AiProvider } from "@/lib/ai-routing";
 
 type Provider = {
-  id: "gemini" | "grok" | "groq" | "openai";
+  id: AiProvider;
   label: string;
   keysUrl: string;
   free: string;
@@ -31,15 +32,10 @@ const btnGhost =
 const inputCls =
   "w-full rounded-xl border border-black/15 bg-white px-3.5 py-2.5 text-sm focus:border-nd-green focus:outline-none focus:ring-2 focus:ring-nd-green/30";
 
-/** Mesma detecção do servidor, só para mostrar "Detectei: …" enquanto a pessoa cola. */
+/** Mesma detecção do servidor (código compartilhado), só para mostrar "Detectei: …" enquanto a pessoa cola. */
 function detectLabel(raw: string): string | null {
-  const k = raw.trim().replace(/^["']|["']$/g, "");
-  if (/^AIza[0-9A-Za-z_-]{30,}$/.test(k)) return "Google Gemini";
-  if (/^xai-[A-Za-z0-9_-]{20,}$/.test(k)) return "Grok (xAI)";
-  if (/^gsk_[A-Za-z0-9]{20,}$/.test(k)) return "Groq";
-  if (/^sk-ant-/.test(k)) return null;
-  if (/^sk-[A-Za-z0-9_-]{20,}$/.test(k)) return "OpenAI";
-  return null;
+  const d = detectProvider(raw);
+  return d.ok ? PROVIDER_LABEL[d.provider] : null;
 }
 
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -67,6 +63,7 @@ export function IntegrationsPanel() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [paste, setPaste] = useState("");
+  const [manualProvider, setManualProvider] = useState<"" | AiProvider>("");
   const [resendKey, setResendKey] = useState("");
   const [models, setModels] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(null);
@@ -120,11 +117,17 @@ export function IntegrationsPanel() {
   const detected = detectLabel(paste);
   const order = ai.providers.map((p) => p.id);
 
-  function move(id: Provider["id"], dir: -1 | 1) {
-    const i = order.indexOf(id);
-    const j = i + dir;
-    if (j < 0 || j >= order.length) return;
+  const configured = ai.providers.filter((p) => p.configured);
+  const others = ai.providers.filter((p) => !p.configured);
+
+  // sobe/desce entre as IAs que têm chave (troca de lugar com a vizinha na ordem completa)
+  function move(id: AiProvider, dir: -1 | 1) {
+    const ci = configured.findIndex((p) => p.id === id);
+    const neighbor = configured[ci + dir];
+    if (!neighbor) return;
     const next = [...order];
+    const i = next.indexOf(id);
+    const j = next.indexOf(neighbor.id);
     [next[i], next[j]] = [next[j], next[i]];
     void act("order", async () => {
       await call("order", "PATCH", { action: "order", order: next });
@@ -143,7 +146,8 @@ export function IntegrationsPanel() {
       <section className="rounded-2xl bg-white p-5 shadow-sm">
         <h2 className="text-lg font-extrabold text-nd-green-dark">IA para ler os recibos (híbrida)</h2>
         <p className="mt-1 text-sm text-nd-graphite/75">
-          Cadastre quantas IAs quiser. O sistema usa a <strong>primeira da lista que estiver com crédito</strong>; quando ela acabar
+          Cadastre quantas IAs quiser (Gemini, Grok, Groq, OpenRouter, Mistral, Together, Fireworks, NVIDIA, DeepInfra, Hugging Face,
+          Cohere, OpenAI e Claude). O sistema usa a <strong>primeira da lista que estiver com crédito</strong>; quando ela acabar
           (ou a chave falhar), passa sozinho para a próxima. As chaves ficam criptografadas e nunca aparecem inteiras.
         </p>
 
@@ -167,9 +171,10 @@ export function IntegrationsPanel() {
           onSubmit={(e) => {
             e.preventDefault();
             void act("add", async () => {
-              const r = await call("add", "PUT", { value: paste });
+              const r = await call("add", "PUT", { value: paste, provider: detected ? undefined : manualProvider || undefined });
               setPaste("");
-              return `Chave do ${r.label} salva. Já está valendo.`;
+              setManualProvider("");
+              return r.message ? `Chave do ${r.label} salva. ${r.message}` : `Chave do ${r.label} salva. Já está valendo.`;
             });
           }}
         >
@@ -184,25 +189,41 @@ export function IntegrationsPanel() {
               onChange={(e) => setPaste(e.target.value)}
               className={inputCls}
             />
-            <button className={btnPrimary} disabled={!paste.trim() || busy === "add"}>
-              {busy === "add" ? "Salvando…" : "Salvar chave"}
+            <button className={btnPrimary} disabled={!paste.trim() || (!detected && !manualProvider) || busy === "add"}>
+              {busy === "add" ? "Salvando e testando…" : "Salvar chave"}
             </button>
           </div>
-          <p className="mt-1.5 text-xs text-nd-graphite/60">
-            {paste.trim()
-              ? detected
-                ? `Detectei: ${detected}`
-                : "Ainda não reconheci o formato — confira se colou a chave inteira."
-              : "O sistema descobre sozinho de qual IA é pelo começo da chave (AIza… = Gemini, xai-… = Grok, gsk_… = Groq, sk-… = OpenAI)."}
-          </p>
+          {paste.trim() && !detected ? (
+            <div className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-semibold">Não reconheci o formato dessa chave. De qual IA ela é?</p>
+              <select className={`${inputCls} mt-2`} value={manualProvider} onChange={(e) => setManualProvider(e.target.value as AiProvider | "")}>
+                <option value="">Escolha a IA…</option>
+                {ai.providers.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs">Depois de salvar, o sistema testa a chave e avisa se a IA recusou.</p>
+            </div>
+          ) : (
+            <p className="mt-1.5 text-xs text-nd-graphite/60">
+              {paste.trim()
+                ? `Detectei: ${detected}. Ao salvar, o sistema já testa a chave.`
+                : "O sistema descobre sozinho de qual IA é pelo começo da chave (AIza… ou AQ.… = Gemini, xai-… = Grok, gsk_… = Groq, sk-ant-… = Claude, sk-or-… = OpenRouter, sk-… = OpenAI…). Se não reconhecer, você escolhe."}
+            </p>
+          )}
         </form>
       </section>
 
       <section className="rounded-2xl bg-white p-5 shadow-sm">
         <h2 className="text-base font-extrabold text-nd-green-dark">Ordem de uso</h2>
         <p className="mt-1 text-sm text-nd-graphite/70">De cima para baixo. Use ▲ ▼ para mudar a ordem.</p>
+        {configured.length === 0 && (
+          <p className="mt-3 rounded-xl bg-black/[0.04] px-4 py-3 text-sm text-nd-graphite/70">
+            Nenhuma IA com chave ainda. Cole uma chave acima ou veja a lista de IAs compatíveis mais abaixo.
+          </p>
+        )}
         <ul className="mt-3 divide-y divide-black/[0.06]">
-          {ai.providers.map((p, i) => (
+          {configured.map((p, i) => (
             <li key={p.id} className={`py-4 ${p.isActive ? "rounded-xl bg-green-50/60 px-3" : ""}`}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="grid size-6 place-items-center rounded-full bg-nd-green-dark text-xs font-bold text-white">{i + 1}</span>
@@ -221,7 +242,7 @@ export function IntegrationsPanel() {
                 <button className={btnGhost} disabled={i === 0 || busy === "order"} onClick={() => move(p.id, -1)} aria-label={`Subir ${p.label}`}>
                   ▲
                 </button>
-                <button className={btnGhost} disabled={i === ai.providers.length - 1 || busy === "order"} onClick={() => move(p.id, 1)} aria-label={`Descer ${p.label}`}>
+                <button className={btnGhost} disabled={i === configured.length - 1 || busy === "order"} onClick={() => move(p.id, 1)} aria-label={`Descer ${p.label}`}>
                   ▼
                 </button>
                 <button
@@ -292,6 +313,30 @@ export function IntegrationsPanel() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 className="text-base font-extrabold text-nd-green-dark">Outras IAs compatíveis ({others.length})</h2>
+        <p className="mt-1 text-sm text-nd-graphite/70">
+          Todas leem imagem e funcionam como reserva. Crie uma chave no site da IA e cole no campo lá em cima: o sistema reconhece
+          sozinho (ou pede para você escolher a IA).
+        </p>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-semibold text-nd-green">Ver as {others.length} IAs sem chave</summary>
+          <ul className="mt-3 divide-y divide-black/[0.06]">
+            {others.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+                <div>
+                  <p className="font-semibold">{p.label}</p>
+                  <p className="text-xs text-nd-graphite/60">{p.free}</p>
+                </div>
+                <a href={p.keysUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-nd-green hover:underline">
+                  Criar chave ↗
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
       </section>
 
       <section className="rounded-2xl bg-white p-5 shadow-sm">

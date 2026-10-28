@@ -2,7 +2,22 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Chaves que o administrador pode cadastrar em /admin → Integrações. */
-export const SECRET_NAMES = ["OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY", "GROQ_API_KEY", "RESEND_API_KEY"] as const;
+export const SECRET_NAMES = [
+  "OPENAI_API_KEY",
+  "GEMINI_API_KEY",
+  "XAI_API_KEY",
+  "GROQ_API_KEY",
+  "OPENROUTER_API_KEY",
+  "MISTRAL_API_KEY",
+  "TOGETHER_API_KEY",
+  "FIREWORKS_API_KEY",
+  "NVIDIA_API_KEY",
+  "DEEPINFRA_API_KEY",
+  "HUGGINGFACE_API_KEY",
+  "COHERE_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "RESEND_API_KEY",
+] as const;
 export type SecretName = (typeof SECRET_NAMES)[number];
 
 const CACHE_MS = 60_000;

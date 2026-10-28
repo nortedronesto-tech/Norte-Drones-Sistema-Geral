@@ -8,6 +8,7 @@ import {
   PROVIDER_META,
   ProviderCallError,
   applyOutcome,
+  cleanKey,
   detectProvider,
   loadAiConfig,
   modelFor,
@@ -20,7 +21,7 @@ import { pickCandidates } from "@/lib/ai-routing";
 export const dynamic = "force-dynamic";
 
 const fail = (error: string, status = 400) => NextResponse.json({ error }, { status });
-const providerField = z.enum(PROVIDER_IDS as [AiProvider, ...AiProvider[]]);
+const providerField = z.enum(PROVIDER_IDS);
 
 /** Tudo que a tela precisa: nunca inclui o valor de uma chave, só se existe e o final dela. */
 async function snapshot() {
@@ -57,18 +58,40 @@ async function snapshot() {
   };
 }
 
+/** Testa a chave (lista os modelos, sem gastar crédito) e grava o estado da IA. */
+async function testAndRecord(p: AiProvider, key: string): Promise<{ ok: boolean; message: string }> {
+  const cfg = await loadAiConfig();
+  try {
+    await pingProvider(p, key, cfg.models[p]);
+    const at = new Date().toISOString();
+    cfg.status[p] = { state: "ok", at, lastOkAt: at };
+    await saveAiConfig(cfg).catch(() => undefined);
+    return { ok: true, message: `${PROVIDER_LABEL[p]}: chave válida. Modelo usado nas leituras: ${modelFor(cfg, p)}.` };
+  } catch (e) {
+    const err = e instanceof ProviderCallError ? e : new ProviderCallError("erro", "other", null);
+    await saveAiConfig(applyOutcome(cfg, p, err)).catch(() => undefined);
+    const why =
+      err.failure === "invalid" ? "a chave foi recusada. Confira se copiou inteira, se escolheu a IA certa, ou gere outra."
+      : err.failure === "credit" ? "créditos/cota esgotados."
+      : err.failure === "rate" ? "limite de uso atingido por agora."
+      : err.failure === "transient" ? "sem resposta agora, tente de novo."
+      : err.message;
+    return { ok: false, message: `${PROVIDER_LABEL[p]}: ${why}` };
+  }
+}
+
 export async function GET() {
   const guard = await requireAdmin();
   if (!guard.ok) return fail(guard.error, guard.status);
   return NextResponse.json(await snapshot());
 }
 
-// Cola a chave: o sistema descobre sozinho de qual IA é pelo formato.
-// Com { name: "RESEND_API_KEY" } cadastra a chave do e-mail do backup.
+// Cola a chave: o sistema descobre sozinho de qual IA é pelo formato; se não reconhecer,
+// a tela deixa escolher a IA na mão ({ provider }). Com { name: "RESEND_API_KEY" } cadastra a do backup.
 export async function PUT(request: NextRequest) {
   const guard = await requireAdmin();
   if (!guard.ok) return fail(guard.error, guard.status);
-  const body = (await request.json().catch(() => null)) as { name?: string; value?: string } | null;
+  const body = (await request.json().catch(() => null)) as { name?: string; value?: string; provider?: unknown } | null;
   const value = typeof body?.value === "string" ? body.value.trim() : "";
   if (!value) return fail("Cole a chave completa.");
 
@@ -79,15 +102,28 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const d = detectProvider(value);
-    if (!d.ok) return fail(d.error);
-    await saveSecret(PROVIDER_META[d.provider].secret, d.key, guard.access.userId);
+    let provider: AiProvider;
+    let key: string;
+    const chosen = providerField.safeParse(body?.provider);
+    if (chosen.success) {
+      const c = cleanKey(value);
+      if (!c.ok) return fail(c.error);
+      provider = chosen.data;
+      key = c.key;
+    } else {
+      const d = detectProvider(value);
+      if (!d.ok) return fail(d.error);
+      provider = d.provider;
+      key = d.key;
+    }
+    await saveSecret(PROVIDER_META[provider].secret, key, guard.access.userId);
 
-    // chave nova: zera o estado anterior (inválida/sem crédito) dessa IA
+    // chave nova: zera o estado anterior e já testa para avisar se funcionou
     const cfg = await loadAiConfig();
-    delete cfg.status[d.provider];
+    delete cfg.status[provider];
     await saveAiConfig(cfg);
-    return NextResponse.json({ ok: true, provider: d.provider, label: PROVIDER_LABEL[d.provider] });
+    const test = await testAndRecord(provider, key);
+    return NextResponse.json({ ok: true, provider, label: PROVIDER_LABEL[provider], tested: test.ok, message: test.message });
   } catch (e) {
     return fail((e as Error).message, 500);
   }
@@ -127,8 +163,7 @@ export async function DELETE(request: NextRequest) {
   const guard = await requireAdmin();
   if (!guard.ok) return fail(guard.error, guard.status);
   try {
-    const name = request.nextUrl.searchParams.get("name");
-    if (name === "RESEND_API_KEY") {
+    if (request.nextUrl.searchParams.get("name") === "RESEND_API_KEY") {
       await removeSecret("RESEND_API_KEY");
       return NextResponse.json({ ok: true });
     }
@@ -144,7 +179,7 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// Testa a chave de uma IA (lista os modelos da conta, sem gastar crédito) e registra o estado.
+// Botão "Testar": confere a chave guardada e registra o estado.
 export async function POST(request: NextRequest) {
   const guard = await requireAdmin();
   if (!guard.ok) return fail(guard.error, guard.status);
@@ -153,23 +188,6 @@ export async function POST(request: NextRequest) {
   const p = parsed.data;
   const key = await getSecret(PROVIDER_META[p].secret);
   if (!key) return fail(`Nenhuma chave do ${PROVIDER_LABEL[p]} cadastrada ainda.`);
-
-  const cfg = await loadAiConfig();
-  try {
-    await pingProvider(p, key);
-    const at = new Date().toISOString();
-    cfg.status[p] = { state: "ok", at, lastOkAt: at };
-    await saveAiConfig(cfg).catch(() => undefined);
-    return NextResponse.json({ ok: true, message: `${PROVIDER_LABEL[p]}: chave válida. Modelo usado nas leituras: ${modelFor(cfg, p)}.` });
-  } catch (e) {
-    const err = e instanceof ProviderCallError ? e : new ProviderCallError("erro", "other", null);
-    await saveAiConfig(applyOutcome(cfg, p, err)).catch(() => undefined);
-    const why =
-      err.failure === "invalid" ? "a chave foi recusada. Confira se copiou inteira ou gere outra."
-      : err.failure === "credit" ? "créditos/cota esgotados."
-      : err.failure === "rate" ? "limite de uso atingido por agora."
-      : err.failure === "transient" ? "sem resposta agora, tente de novo."
-      : err.message;
-    return fail(`${PROVIDER_LABEL[p]}: ${why}`);
-  }
+  const t = await testAndRecord(p, key);
+  return t.ok ? NextResponse.json({ ok: true, message: t.message }) : fail(t.message);
 }

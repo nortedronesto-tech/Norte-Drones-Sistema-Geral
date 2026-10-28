@@ -2,34 +2,75 @@
 // decidir a ordem de tentativa e classificar falhas. Fica separada para ser testada
 // com `node --test` (tests/ai-routing.test.ts).
 
-export type AiProvider = "gemini" | "grok" | "groq" | "openai";
+export const PROVIDER_IDS = [
+  "gemini",
+  "grok",
+  "groq",
+  "openrouter",
+  "mistral",
+  "together",
+  "fireworks",
+  "nvidia",
+  "deepinfra",
+  "huggingface",
+  "cohere",
+  "openai",
+  "anthropic",
+] as const;
+export type AiProvider = (typeof PROVIDER_IDS)[number];
 
-export const PROVIDER_IDS: AiProvider[] = ["gemini", "grok", "groq", "openai"];
-/** Ordem padrão: gratuito primeiro, pago por último. */
-export const DEFAULT_ORDER: AiProvider[] = ["gemini", "grok", "groq", "openai"];
+/** Ordem padrão: as que costumam ter faixa gratuita primeiro, as pagas por último. */
+export const DEFAULT_ORDER: AiProvider[] = [...PROVIDER_IDS];
 
 export const PROVIDER_LABEL: Record<AiProvider, string> = {
   gemini: "Google Gemini",
   grok: "Grok (xAI)",
   groq: "Groq",
+  openrouter: "OpenRouter",
+  mistral: "Mistral",
+  together: "Together AI",
+  fireworks: "Fireworks AI",
+  nvidia: "NVIDIA NIM",
+  deepinfra: "DeepInfra",
+  huggingface: "Hugging Face",
+  cohere: "Cohere",
   openai: "OpenAI",
+  anthropic: "Claude (Anthropic)",
 };
+
+/** Limpa a chave colada (aspas, espaços nas pontas) e recusa o que claramente não é uma chave. */
+export function cleanKey(raw: string): { ok: true; key: string } | { ok: false; error: string } {
+  const key = raw.trim().replace(/^["']|["']$/g, "");
+  if (key.length < 20) return { ok: false, error: "Cole a chave completa." };
+  if (key.length > 400) return { ok: false, error: "Esse texto é grande demais para ser uma chave." };
+  if (/\s/.test(key)) return { ok: false, error: "A chave não pode ter espaços ou quebras de linha. Copie de novo, só a chave." };
+  return { ok: true, key };
+}
 
 export type DetectResult = { ok: true; provider: AiProvider; key: string } | { ok: false; error: string };
 
+// Formato de cada chave. Ordem importa: "sk-ant-" e "sk-or-v1-" vêm antes do "sk-" genérico da OpenAI.
+// Mistral, Cohere e DeepInfra usam chaves sem prefixo: nesses casos a tela pede para escolher a IA.
+const DETECTORS: [AiProvider, RegExp][] = [
+  ["gemini", /^AIza[0-9A-Za-z_-]{30,}$/],
+  ["gemini", /^AQ\.[A-Za-z0-9_.-]{30,}$/], // formato novo do Google AI Studio
+  ["grok", /^xai-[A-Za-z0-9_-]{20,}$/],
+  ["groq", /^gsk_[A-Za-z0-9]{20,}$/],
+  ["anthropic", /^sk-ant-[A-Za-z0-9_-]{20,}$/],
+  ["openrouter", /^sk-or-v1-[A-Za-z0-9_-]{20,}$/],
+  ["fireworks", /^fw_[A-Za-z0-9]{20,}$/],
+  ["huggingface", /^hf_[A-Za-z0-9]{20,}$/],
+  ["nvidia", /^nvapi-[A-Za-z0-9_-]{20,}$/],
+  ["together", /^[a-f0-9]{64}$/],
+  ["openai", /^sk-[A-Za-z0-9_-]{20,}$/],
+];
+
 /** Descobre de qual IA é a chave colada, pelo formato. */
 export function detectProvider(raw: string): DetectResult {
-  const key = raw.trim().replace(/^["']|["']$/g, "");
-  if (key.length < 20) return { ok: false, error: "Cole a chave completa." };
-  if (/\s/.test(key)) return { ok: false, error: "A chave não pode ter espaços. Copie de novo, só a chave." };
-  if (/^AIza[0-9A-Za-z_-]{30,}$/.test(key)) return { ok: true, provider: "gemini", key };
-  if (/^xai-[A-Za-z0-9_-]{20,}$/.test(key)) return { ok: true, provider: "grok", key };
-  if (/^gsk_[A-Za-z0-9]{20,}$/.test(key)) return { ok: true, provider: "groq", key };
-  if (/^sk-ant-/.test(key)) {
-    return { ok: false, error: "Essa é uma chave da Anthropic (Claude), que ainda não é suportada aqui. Use Gemini, Grok, Groq ou OpenAI." };
-  }
-  if (/^sk-[A-Za-z0-9_-]{20,}$/.test(key)) return { ok: true, provider: "openai", key };
-  return { ok: false, error: "Não reconheci essa chave. Aceito Gemini (AIza…), Grok (xai-…), Groq (gsk_…) e OpenAI (sk-…)." };
+  const c = cleanKey(raw);
+  if (!c.ok) return c;
+  for (const [provider, re] of DETECTORS) if (re.test(c.key)) return { ok: true, provider, key: c.key };
+  return { ok: false, error: "Não reconheci o formato dessa chave. Escolha de qual IA ela é na lista que aparece abaixo do campo." };
 }
 
 export type ProviderState = {
@@ -49,7 +90,7 @@ export type AiConfig = {
   lastUsed?: { provider: AiProvider; at: string };
 };
 
-const isProvider = (v: unknown): v is AiProvider => typeof v === "string" && (PROVIDER_IDS as string[]).includes(v);
+const isProvider = (v: unknown): v is AiProvider => typeof v === "string" && (PROVIDER_IDS as readonly string[]).includes(v);
 
 /** Lê a configuração salva (JSON qualquer) e devolve uma válida e completa. */
 export function normalizeConfig(raw: unknown): AiConfig {

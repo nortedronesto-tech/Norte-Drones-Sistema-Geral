@@ -13,41 +13,43 @@ import {
   type Failure,
 } from "@/lib/ai-routing";
 
-export { PROVIDER_IDS, PROVIDER_LABEL, detectProvider, applyOutcome } from "@/lib/ai-routing";
+export { PROVIDER_IDS, PROVIDER_LABEL, cleanKey, detectProvider, applyOutcome } from "@/lib/ai-routing";
 export type { AiConfig, AiProvider } from "@/lib/ai-routing";
 
-/** Onde a chave de cada IA fica guardada (cofre do Supabase) e o que cada uma usa. */
-export const PROVIDER_META: Record<
-  AiProvider,
-  { secret: SecretName; defaultModel: string; baseUrl?: string; keysUrl: string; free: string }
-> = {
-  gemini: {
-    secret: "GEMINI_API_KEY",
-    defaultModel: "gemini-2.5-flash",
-    keysUrl: "https://aistudio.google.com/apikey",
-    free: "tem faixa gratuita diária",
-  },
-  grok: {
-    secret: "XAI_API_KEY",
-    defaultModel: "grok-2-vision-latest",
-    baseUrl: "https://api.x.ai/v1",
-    keysUrl: "https://console.x.ai",
-    free: "pago por uso",
-  },
-  groq: {
-    secret: "GROQ_API_KEY",
-    defaultModel: "meta-llama/llama-4-scout-17b-16e-instruct",
-    baseUrl: "https://api.groq.com/openai/v1",
-    keysUrl: "https://console.groq.com/keys",
-    free: "tem faixa gratuita",
-  },
-  openai: {
-    secret: "OPENAI_API_KEY",
-    defaultModel: "gpt-4o-mini",
-    baseUrl: "https://api.openai.com/v1",
-    keysUrl: "https://platform.openai.com/api-keys",
-    free: "pago por uso",
-  },
+type Kind = "gemini" | "openai" | "anthropic" | "cohere";
+type PingKind = "models" | "chat" | { url: string };
+
+type Meta = {
+  secret: SecretName;
+  /** formato da API: "openai" = chat/completions compatível com a OpenAI */
+  kind: Kind;
+  defaultModel: string;
+  baseUrl?: string;
+  keysUrl: string;
+  free: string;
+  /** Mistral quer a imagem como texto (data URL) em vez de objeto */
+  imageAsString?: boolean;
+  ping?: PingKind;
+};
+
+/**
+ * Todas as IAs com API de leitura de imagem suportadas. Os nomes de modelo mudam com o tempo:
+ * o administrador pode trocar em Admin → Integrações (campo "Modelo") sem mexer no código.
+ */
+export const PROVIDER_META: Record<AiProvider, Meta> = {
+  gemini: { secret: "GEMINI_API_KEY", kind: "gemini", defaultModel: "gemini-2.5-flash", keysUrl: "https://aistudio.google.com/apikey", free: "costuma ter faixa gratuita diária" },
+  grok: { secret: "XAI_API_KEY", kind: "openai", defaultModel: "grok-2-vision-latest", baseUrl: "https://api.x.ai/v1", keysUrl: "https://console.x.ai", free: "pago por uso" },
+  groq: { secret: "GROQ_API_KEY", kind: "openai", defaultModel: "meta-llama/llama-4-scout-17b-16e-instruct", baseUrl: "https://api.groq.com/openai/v1", keysUrl: "https://console.groq.com/keys", free: "costuma ter faixa gratuita" },
+  openrouter: { secret: "OPENROUTER_API_KEY", kind: "openai", defaultModel: "google/gemini-2.0-flash-exp:free", baseUrl: "https://openrouter.ai/api/v1", keysUrl: "https://openrouter.ai/keys", free: "tem modelos gratuitos (terminam em :free)", ping: { url: "https://openrouter.ai/api/v1/auth/key" } },
+  mistral: { secret: "MISTRAL_API_KEY", kind: "openai", defaultModel: "mistral-small-latest", baseUrl: "https://api.mistral.ai/v1", keysUrl: "https://console.mistral.ai/api-keys", free: "costuma ter faixa gratuita de teste", imageAsString: true },
+  together: { secret: "TOGETHER_API_KEY", kind: "openai", defaultModel: "Qwen/Qwen2.5-VL-72B-Instruct", baseUrl: "https://api.together.xyz/v1", keysUrl: "https://api.together.ai/settings/api-keys", free: "pago por uso (pode ter créditos iniciais)" },
+  fireworks: { secret: "FIREWORKS_API_KEY", kind: "openai", defaultModel: "accounts/fireworks/models/qwen2p5-vl-32b-instruct", baseUrl: "https://api.fireworks.ai/inference/v1", keysUrl: "https://app.fireworks.ai/settings/users/api-keys", free: "pago por uso (pode ter créditos iniciais)" },
+  nvidia: { secret: "NVIDIA_API_KEY", kind: "openai", defaultModel: "meta/llama-3.2-90b-vision-instruct", baseUrl: "https://integrate.api.nvidia.com/v1", keysUrl: "https://build.nvidia.com", free: "créditos gratuitos para testes", ping: "chat" },
+  deepinfra: { secret: "DEEPINFRA_API_KEY", kind: "openai", defaultModel: "meta-llama/Llama-3.2-11B-Vision-Instruct", baseUrl: "https://api.deepinfra.com/v1/openai", keysUrl: "https://deepinfra.com/dash/api_keys", free: "pago por uso, bem barato", ping: "chat" },
+  huggingface: { secret: "HUGGINGFACE_API_KEY", kind: "openai", defaultModel: "Qwen/Qwen2.5-VL-7B-Instruct", baseUrl: "https://router.huggingface.co/v1", keysUrl: "https://huggingface.co/settings/tokens", free: "faixa gratuita limitada", ping: { url: "https://huggingface.co/api/whoami-v2" } },
+  cohere: { secret: "COHERE_API_KEY", kind: "cohere", defaultModel: "command-a-vision-07-2025", keysUrl: "https://dashboard.cohere.com/api-keys", free: "chave de teste gratuita (uso limitado)" },
+  openai: { secret: "OPENAI_API_KEY", kind: "openai", defaultModel: "gpt-4o-mini", baseUrl: "https://api.openai.com/v1", keysUrl: "https://platform.openai.com/api-keys", free: "pago por uso" },
+  anthropic: { secret: "ANTHROPIC_API_KEY", kind: "anthropic", defaultModel: "claude-haiku-5-5", keysUrl: "https://console.anthropic.com/settings/keys", free: "pago por uso" },
 };
 
 // ------------------------------------------------------------ configuração salva
@@ -125,8 +127,9 @@ export async function callVision(
   const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(dataUrl);
   if (!m) throw new ProviderCallError("imagem inválida", "other", 400);
   const [, mime, b64] = m;
+  const meta = PROVIDER_META[p];
 
-  if (p === "gemini") {
+  if (meta.kind === "gemini") {
     const text = await post(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       { "x-goog-api-key": key },
@@ -142,8 +145,54 @@ export async function callVision(
     return out;
   }
 
-  // Grok (xAI), Groq e OpenAI usam o formato "chat completions" da OpenAI.
-  const base = PROVIDER_META[p].baseUrl!;
+  if (meta.kind === "anthropic") {
+    const text = await post(
+      "https://api.anthropic.com/v1/messages",
+      { "x-api-key": key, "anthropic-version": "2023-06-01" },
+      {
+        model,
+        max_tokens: 600,
+        temperature: 0,
+        system,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mime, data: b64 } },
+              { type: "text", text: userText },
+            ],
+          },
+        ],
+      },
+    );
+    const j = JSON.parse(text) as { content?: { type?: string; text?: string }[] };
+    const out = j.content?.filter((c) => c.type === "text").map((c) => c.text ?? "").join("") ?? "";
+    if (!out) throw new ProviderCallError("resposta vazia", "other", 200);
+    return out;
+  }
+
+  if (meta.kind === "cohere") {
+    const text = await post(
+      "https://api.cohere.com/v2/chat",
+      { Authorization: `Bearer ${key}` },
+      {
+        model,
+        temperature: 0,
+        max_tokens: 600,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: [{ type: "text", text: userText }, { type: "image_url", image_url: { url: dataUrl } }] },
+        ],
+      },
+    );
+    const j = JSON.parse(text) as { message?: { content?: { type?: string; text?: string }[] } };
+    const out = j.message?.content?.map((c) => c.text ?? "").join("") ?? "";
+    if (!out) throw new ProviderCallError("resposta vazia", "other", 200);
+    return out;
+  }
+
+  // Grok, Groq, OpenRouter, Mistral, Together, Fireworks, NVIDIA, DeepInfra, Hugging Face e OpenAI
+  // usam o formato "chat completions" da OpenAI.
   const body: Record<string, unknown> = {
     model,
     messages: [
@@ -152,7 +201,7 @@ export async function callVision(
         role: "user",
         content: [
           { type: "text", text: userText },
-          { type: "image_url", image_url: { url: dataUrl } },
+          { type: "image_url", image_url: meta.imageAsString ? dataUrl : { url: dataUrl } },
         ],
       },
     ],
@@ -164,20 +213,46 @@ export async function callVision(
     body.max_tokens = 600;
     body.temperature = 0;
   }
-  const text = await post(`${base}/chat/completions`, { Authorization: `Bearer ${key}` }, body);
-  const j = JSON.parse(text) as { choices?: { message?: { content?: string } }[] };
-  const out = j.choices?.[0]?.message?.content ?? "";
+  const text = await post(`${meta.baseUrl}/chat/completions`, { Authorization: `Bearer ${key}` }, body);
+  const j = JSON.parse(text) as { choices?: { message?: { content?: string | { text?: string }[] } }[] };
+  const c = j.choices?.[0]?.message?.content;
+  const out = typeof c === "string" ? c : Array.isArray(c) ? c.map((x) => x.text ?? "").join("") : "";
   if (!out) throw new ProviderCallError("resposta vazia", "other", 200);
   return out;
 }
 
-/** Teste barato: lista os modelos da conta (não gasta crédito). */
-export async function pingProvider(p: AiProvider, key: string): Promise<void> {
-  const url = p === "gemini" ? "https://generativelanguage.googleapis.com/v1beta/models" : `${PROVIDER_META[p].baseUrl}/models`;
-  const headers: Record<string, string> = p === "gemini" ? { "x-goog-api-key": key } : { Authorization: `Bearer ${key}` };
+/** Teste barato da chave: lista modelos / consulta a conta (sem gastar crédito; "chat" usa 1 token). */
+export async function pingProvider(p: AiProvider, key: string, model?: string): Promise<void> {
+  const meta = PROVIDER_META[p];
+  let url: string;
+  let init: RequestInit = { signal: AbortSignal.timeout(15_000) };
+
+  if (meta.kind === "gemini") {
+    url = "https://generativelanguage.googleapis.com/v1beta/models";
+    init = { ...init, headers: { "x-goog-api-key": key } };
+  } else if (meta.kind === "anthropic") {
+    url = "https://api.anthropic.com/v1/models";
+    init = { ...init, headers: { "x-api-key": key, "anthropic-version": "2023-06-01" } };
+  } else if (meta.kind === "cohere") {
+    url = "https://api.cohere.com/v1/models";
+    init = { ...init, headers: { Authorization: `Bearer ${key}` } };
+  } else if (meta.ping === "chat") {
+    // sem lista de modelos que confirme a chave: pergunta "ok" e aceita no máximo 1 token
+    url = `${meta.baseUrl}/chat/completions`;
+    init = {
+      ...init,
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: model || meta.defaultModel, messages: [{ role: "user", content: "ok" }], max_tokens: 1 }),
+    };
+  } else {
+    url = typeof meta.ping === "object" ? meta.ping.url : `${meta.baseUrl}/models`;
+    init = { ...init, headers: { Authorization: `Bearer ${key}` } };
+  }
+
   let res: Response;
   try {
-    res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+    res = await fetch(url, init);
   } catch {
     throw new ProviderCallError("sem resposta", "transient", null);
   }
@@ -186,7 +261,7 @@ export async function pingProvider(p: AiProvider, key: string): Promise<void> {
     let msg = text.slice(0, 200);
     try {
       const j = JSON.parse(text);
-      msg = j?.error?.message ?? j?.error ?? msg;
+      msg = j?.error?.message ?? j?.error ?? j?.message ?? msg;
     } catch {
       /* texto cru */
     }
