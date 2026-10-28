@@ -5,19 +5,23 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Camera, Globe, House, ListChecks, LogOut, PiggyBank, Settings } from "lucide-react";
 import { signOut } from "@/app/gestao/actions";
+import type { Role } from "@/lib/access";
 
-const items = [
+const ALL_ITEMS = [
   { href: "/gestao", label: "Início", icon: House },
   { href: "/gestao/lancamentos", label: "Lançamentos", icon: ListChecks },
-  { href: "/gestao/despesa-foto", label: "Despesa com foto", icon: Camera, cta: true },
+  { href: "/gestao/despesa-foto", label: "Despesa com foto", icon: Camera, cta: true, needs: "write" },
   { href: "/gestao/reserva", label: "Reserva", icon: PiggyBank },
-  { href: "/gestao/cadastros", label: "Cadastros", icon: Settings },
+  { href: "/gestao/cadastros", label: "Cadastros", icon: Settings, needs: "manage" },
 ];
 
 const isActive = (path: string, href: string) => (href === "/gestao" ? path === "/gestao" : path.startsWith(href));
 
-export function Nav({ userName, email }: { userName: string; email: string }) {
+export function Nav({ userName, email, role }: { userName: string; email: string; role: Role }) {
   const path = usePathname();
+  const canWrite = role !== "consulta";
+  const canManage = role === "admin" || role === "socio";
+  const items = ALL_ITEMS.filter((i) => (i.needs === "write" ? canWrite : i.needs === "manage" ? canManage : true));
 
   return (
     <>
@@ -54,9 +58,11 @@ export function Nav({ userName, email }: { userName: string; email: string }) {
           })}
         </nav>
         <div className="border-t border-white/15 pt-4">
-          <Link href="/admin" className="mb-3 flex items-center gap-2 text-sm font-medium text-white/75 hover:text-white">
-            <Globe className="size-4" aria-hidden /> Admin do site
-          </Link>
+          {canManage && (
+            <Link href="/admin" className="mb-3 flex items-center gap-2 text-sm font-medium text-white/75 hover:text-white">
+              <Globe className="size-4" aria-hidden /> Admin do site
+            </Link>
+          )}
           <p className="truncate text-sm font-semibold">{userName}</p>
           <p className="truncate text-xs text-white/60">{email}</p>
           <form action={signOut}>
@@ -84,7 +90,8 @@ export function Nav({ userName, email }: { userName: string; email: string }) {
 
       <nav
         aria-label="Navegação principal"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-black/10 bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+        className="fixed inset-x-0 bottom-0 z-30 grid border-t border-black/10 bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {items.map(({ href, label, icon: Icon, cta }) => {
           const active = isActive(path, href);

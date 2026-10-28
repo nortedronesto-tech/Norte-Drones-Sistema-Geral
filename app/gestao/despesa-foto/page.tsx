@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getAccess } from "@/lib/access";
 import { getAccountBalances } from "@/lib/data";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { PhotoExpenseForm } from "@/components/PhotoExpenseForm";
@@ -6,6 +8,8 @@ import { PhotoExpenseForm } from "@/components/PhotoExpenseForm";
 export const metadata = { title: "Despesa com foto" };
 
 export default async function PhotoExpensePage() {
+  const access = await getAccess();
+  if (!access?.canWrite) redirect("/gestao");
   const accounts = (await getAccountBalances()).filter((a) => a.active);
   return (
     <>

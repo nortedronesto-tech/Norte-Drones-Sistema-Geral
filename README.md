@@ -37,12 +37,42 @@ Migrações em `supabase/migrations`, em ordem:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | sim | mesma tela (chave anon/publishable) |
 | `NEXT_PUBLIC_SITE_URL` | recomendada | URL final do site |
 | `OPENAI_API_KEY` | não | só para a IA de imagem no `/admin` (servidor) |
+| `SUPABASE_SERVICE_ROLE_KEY` | sim (usuários e backup) | Supabase → Project Settings → API Keys → *service_role*. **Segredo**: só no servidor, nunca com `NEXT_PUBLIC_` |
+| `RESEND_API_KEY` | sim (backup) | Chave do [Resend](https://resend.com) (conta criada com o e-mail que recebe o backup) |
+| `BACKUP_EMAIL_TO` | não | Destino do backup (padrão `nortedronesto@gmail.com`) |
+| `CRON_SECRET` | sim (agendamentos) | Texto longo e aleatório; a Vercel o envia nos agendamentos |
 
 ```bash
 cp .env.example .env.local   # preencha
 npm install
 npm run dev
 ```
+
+## Níveis de acesso e usuários
+
+Em **/admin → Usuários** (só administrador) você cadastra o login (e-mail + senha), escolhe o nível, troca senha, desativa ou exclui.
+
+| Nível | Pode |
+|---|---|
+| Administrador | Tudo, inclusive cadastrar usuários |
+| Sócio | Gestão completa + admin do site |
+| Financeiro | Lançar e consultar o financeiro (sem cadastros, sem admin do site) |
+| Consulta | Só visualizar o financeiro |
+
+O nível vale no banco (RLS), não só na tela. Rode `supabase/migrations/0005_niveis_de_acesso.sql` no SQL Editor para ativar.
+
+## Backup semanal por e-mail
+
+Toda segunda, 8h (Brasília), a Vercel chama `/api/cron/backup`, que envia por e-mail o backup completo (.json) e a planilha de lançamentos (.csv). Um 2º agendamento diário (`/api/cron/keepalive`) evita que o Supabase gratuito pause o projeto. Os dois estão em `vercel.json`.
+
+Configuração (uma vez):
+1. Crie uma conta em resend.com **com o e-mail que vai receber o backup** e gere uma *API Key*.
+2. Na Vercel, cadastre `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` e `CRON_SECRET`, e faça Redeploy.
+3. Em **/admin → Backup**, clique em *Enviar backup agora* para testar.
+
+## Domínio próprio
+
+Vercel → projeto → **Settings → Domains → Add** → digite o domínio (ex.: `nortedrones.com.br`). A Vercel mostra os registros DNS; copie-os no painel de DNS de quem vendeu o domínio (no Registro.br: *Editar zona DNS*): um registro **A** para `76.76.21.21` (domínio sem www) e um **CNAME** `www` → `cname.vercel-dns.com`. Depois ajuste `NEXT_PUBLIC_SITE_URL` e faça Redeploy.
 
 ## Primeiro acesso
 

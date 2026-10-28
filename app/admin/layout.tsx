@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
+import { getAccess } from "@/lib/access";
 import { signOut } from "@/app/gestao/actions";
 import { AdminTabs } from "@/components/AdminTabs";
 
@@ -10,23 +11,28 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/admin");
+  const access = await getAccess();
+  if (!access) redirect("/login?next=/admin");
 
-  // Só sócios ativos (e-mail em `partners`) entram; o banco também confere via RLS.
-  const { data: isPartner } = await supabase.rpc("is_partner");
-  if (!isPartner) {
+  // Admin do site: administrador e sócio. O banco (RLS) também confere.
+  if (!access.canManage) {
     return (
       <main className="grid min-h-dvh place-items-center bg-nd-mist p-6">
         <div className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-sm">
           <h1 className="text-xl font-extrabold text-nd-green-dark">Acesso não liberado</h1>
           <p className="mt-2 text-sm text-nd-graphite/70">
-            O e-mail <strong>{user.email}</strong> não está cadastrado como sócio ativo.
+            O e-mail <strong>{access.email}</strong> não tem permissão para o painel administrativo.
           </p>
-          <form action={signOut} className="mt-5">
-            <button className="rounded-xl bg-nd-green-dark px-5 py-3 font-bold text-white">Sair</button>
-          </form>
+          <div className="mt-5 flex flex-col gap-2">
+            {access.role && (
+              <Link href="/gestao" className="rounded-xl bg-nd-green-dark px-5 py-3 font-bold text-white">
+                Ir para a gestão
+              </Link>
+            )}
+            <form action={signOut}>
+              <button className="w-full rounded-xl border border-black/15 px-5 py-3 font-bold text-nd-graphite">Sair</button>
+            </form>
+          </div>
         </div>
       </main>
     );

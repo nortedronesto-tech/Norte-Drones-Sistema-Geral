@@ -2,10 +2,14 @@ import { getAccountBalances, getPartners, getReservePct } from "@/lib/data";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { TransactionForm } from "@/components/TransactionForm";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getAccess } from "@/lib/access";
 
 export const metadata = { title: "Novo lançamento" };
 
 export default async function NewTransactionPage() {
+  const access = await getAccess();
+  if (!access?.canWrite) redirect("/gestao");
   const [accounts, partners, reservePct] = await Promise.all([getAccountBalances(), getPartners(), getReservePct()]);
   const active = accounts.filter((a) => a.active);
 

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccountBalances } from "@/lib/data";
 import { monthKey, monthLabel, todayBR } from "@/lib/format";
 import { btn, Card, EmptyState, inputClass, PageHeader } from "@/components/ui";
+import { getAccess } from "@/lib/access";
 import { TransactionList } from "@/components/TransactionList";
 import type { Transaction } from "@/lib/types";
 
@@ -66,6 +67,7 @@ export default async function TransactionsPage({
     signed?.forEach((s) => { if (s.path && s.signedUrl) receiptUrls[s.path] = s.signedUrl; });
   }
 
+  const canWrite = (await getAccess())?.canWrite ?? false;
   const moreParams = new URLSearchParams({ ...(tipo && { tipo }), ...(status && { status }), ...(conta && { conta }), ...(mes && { mes }), limite: String(limite + PAGE) });
 
   return (
@@ -73,7 +75,7 @@ export default async function TransactionsPage({
       <PageHeader
         title="Lançamentos"
         subtitle="Entradas e saídas, pagas ou pendentes."
-        action={<div className="hidden md:block"><Link href="/gestao/lancamentos/novo" className={btn.primary}><Plus className="size-5" aria-hidden /> Novo</Link></div>}
+        action={canWrite ? <div className="hidden md:block"><Link href="/gestao/lancamentos/novo" className={btn.primary}><Plus className="size-5" aria-hidden /> Novo</Link></div> : undefined}
       />
 
       <form method="get" className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-5">
@@ -102,7 +104,7 @@ export default async function TransactionsPage({
         {rows.length === 0 ? (
           <EmptyState>Nenhum lançamento encontrado com esses filtros.</EmptyState>
         ) : (
-          <TransactionList rows={rows} receiptUrls={receiptUrls} />
+          <TransactionList rows={rows} receiptUrls={receiptUrls} canWrite={canWrite} />
         )}
       </Card>
 

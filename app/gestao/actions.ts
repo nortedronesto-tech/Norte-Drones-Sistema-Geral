@@ -11,7 +11,7 @@ const fail = (error: string): { ok: false; error: string } => ({ ok: false, erro
 
 /** Traduz erros do Postgres/PostgREST para mensagens úteis. */
 function dbError(e: { message: string; code?: string }): { ok: false; error: string } {
-  if (e.code === "42501") return fail("Sem permissão. Confira se o seu e-mail está cadastrado como sócio.");
+  if (e.code === "42501") return fail("Seu nível de acesso não permite essa ação. Fale com o administrador.");
   if (e.code === "P0001") return fail(e.message); // mensagens de regra de negócio já estão em português
   if (e.code === "23514") return fail("Dados inválidos para este lançamento.");
   if (e.code === "23505") return fail("Já existe um registro com esse valor (e-mail duplicado?).");

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowDownToLine, ArrowUpFromLine, Camera, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/access";
 import { getAccountBalances, getPartners, getReservePct, sum } from "@/lib/data";
 import { formatBRL, formatDateShort, monthLabel, monthKey, todayBR } from "@/lib/format";
 import { ACCOUNT_KIND_LABEL } from "@/lib/constants";
@@ -11,6 +12,7 @@ export const metadata = { title: "Início" };
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const canWrite = (await getAccess())?.canWrite ?? false;
   const today = todayBR();
   const monthStart = `${monthKey(today)}-01`;
 
@@ -45,11 +47,13 @@ export default async function DashboardPage() {
         title="Visão geral"
         subtitle="Saldos das contas, reserva e rateio entre os sócios."
         action={
-          <div className="hidden md:block">
-            <Link href="/gestao/lancamentos/novo" className={btn.primary}>
-              <Plus className="size-5" aria-hidden /> Novo lançamento
-            </Link>
-          </div>
+          canWrite ? (
+            <div className="hidden md:block">
+              <Link href="/gestao/lancamentos/novo" className={btn.primary}>
+                <Plus className="size-5" aria-hidden /> Novo lançamento
+              </Link>
+            </div>
+          ) : undefined
         }
       />
 
@@ -70,10 +74,12 @@ export default async function DashboardPage() {
       </section>
 
       {/* Atalhos mobile */}
-      <div className="mt-3 grid grid-cols-2 gap-3 md:hidden">
-        <Link href="/gestao/despesa-foto" className={btn.cta}><Camera className="size-5" aria-hidden /> Despesa com foto</Link>
-        <Link href="/gestao/lancamentos/novo" className={btn.ghost}><Plus className="size-5" aria-hidden /> Lançamento</Link>
-      </div>
+      {canWrite && (
+        <div className="mt-3 grid grid-cols-2 gap-3 md:hidden">
+          <Link href="/gestao/despesa-foto" className={btn.cta}><Camera className="size-5" aria-hidden /> Despesa com foto</Link>
+          <Link href="/gestao/lancamentos/novo" className={btn.ghost}><Plus className="size-5" aria-hidden /> Lançamento</Link>
+        </div>
+      )}
 
       {/* Pendências e mês */}
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">

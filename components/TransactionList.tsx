@@ -7,7 +7,7 @@ import { formatBRL, formatDate } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 import { FormError, Money, StatusBadge } from "./ui";
 
-export function TransactionList({ rows, receiptUrls }: { rows: Transaction[]; receiptUrls: Record<string, string> }) {
+export function TransactionList({ rows, receiptUrls, canWrite = true }: { rows: Transaction[]; receiptUrls: Record<string, string>; canWrite?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -45,7 +45,7 @@ export function TransactionList({ rows, receiptUrls }: { rows: Transaction[]; re
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                {t.status !== "pago" && (
+                {canWrite && t.status !== "pago" && (
                   <button
                     disabled={busy}
                     onClick={() => run(t.id, () => markPaid(t.id))}
@@ -65,7 +65,7 @@ export function TransactionList({ rows, receiptUrls }: { rows: Transaction[]; re
                     <ImageIcon className="size-4" aria-hidden /> Ver foto
                   </a>
                 )}
-                <button
+                {canWrite && <button
                   disabled={busy}
                   onClick={() => {
                     const extra = t.type === "entrada" && t.status === "pago" ? " O rateio e a retenção da reserva dela também serão desfeitos." : "";
@@ -75,7 +75,7 @@ export function TransactionList({ rows, receiptUrls }: { rows: Transaction[]; re
                   aria-label="Excluir lançamento"
                 >
                   <Trash2 className="size-4" aria-hidden />
-                </button>
+                </button>}
               </div>
             </li>
           );

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/access";
 import { getReservePct, sum } from "@/lib/data";
 import { formatBRL, formatDate } from "@/lib/format";
 import { Card, CardTitle, EmptyState, PageHeader } from "@/components/ui";
@@ -12,6 +13,7 @@ const KIND_LABEL = { retencao: "Retenção", retirada: "Retirada", ajuste: "Ajus
 
 export default async function ReservePage() {
   const supabase = await createClient();
+  const canWrite = (await getAccess())?.canWrite ?? false;
   const [reservePct, entriesRes, totalsRes] = await Promise.all([
     getReservePct(),
     supabase
@@ -63,7 +65,7 @@ export default async function ReservePage() {
         </Card>
         <Card>
           <CardTitle>Registrar retirada</CardTitle>
-          <ReserveWithdrawal balance={balance} />
+          {canWrite && <ReserveWithdrawal balance={balance} />}
         </Card>
       </div>
 
@@ -87,7 +89,7 @@ export default async function ReservePage() {
                       <p className="num text-xs text-brand-graphite/60">saldo {formatBRL(e.running)}</p>
                     </div>
                   </div>
-                  {e.kind !== "retencao" && <div className="mt-1 flex justify-end"><ReserveDeleteButton id={e.id} /></div>}
+                  {canWrite && e.kind !== "retencao" && <div className="mt-1 flex justify-end"><ReserveDeleteButton id={e.id} /></div>}
                 </li>
               ))}
             </ul>
@@ -109,7 +111,7 @@ export default async function ReservePage() {
                       <td className="py-2.5 pr-3">{e.partners?.name?.split(" ")[0] ?? "—"}</td>
                       <td className={`num py-2.5 pr-3 text-right font-bold ${e.amount < 0 ? "text-danger" : "text-brand-green"}`}>{e.amount < 0 ? "− " : "+ "}{formatBRL(Math.abs(e.amount))}</td>
                       <td className="num py-2.5 pr-3 text-right">{formatBRL(e.running)}</td>
-                      <td>{e.kind !== "retencao" && <ReserveDeleteButton id={e.id} />}</td>
+                      <td>{canWrite && e.kind !== "retencao" && <ReserveDeleteButton id={e.id} />}</td>
                     </tr>
                   ))}
                 </tbody>

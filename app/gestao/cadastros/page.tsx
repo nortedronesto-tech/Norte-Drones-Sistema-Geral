@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { getAccess } from "@/lib/access";
 import { getAccountBalances, getPartners, getReservePct } from "@/lib/data";
 import { Card, CardTitle, PageHeader } from "@/components/ui";
 import { PartnersForm } from "@/components/PartnersForm";
@@ -6,6 +8,8 @@ import { AccountsManager } from "@/components/AccountsManager";
 export const metadata = { title: "Cadastros" };
 
 export default async function RegistrationsPage() {
+  const access = await getAccess();
+  if (!access?.canManage) redirect("/gestao");
   const [partners, accounts, reservePct] = await Promise.all([getPartners(), getAccountBalances(), getReservePct()]);
   return (
     <>

@@ -8,6 +8,8 @@ import type { SiteContacts } from "@/lib/content-store";
 import { SITE_IMAGE_FIELDS, SiteImageKey } from "@/lib/site-image-fields";
 import { PostGenerator } from "./PostGenerator";
 import { VideoGenerator } from "./VideoGenerator";
+import { UsersManager } from "./UsersManager";
+import { BackupPanel } from "./BackupPanel";
 import { formatPhoneBR } from "./phoneFormat";
 
 const EMPTY: SiteContacts = {
@@ -21,20 +23,29 @@ const EMPTY: SiteContacts = {
   areaServed: "",
 };
 
-const TABS = [
+const BASE_TABS = [
   { key: "contatos", label: "Contatos" },
   { key: "imagens", label: "Imagens" },
   { key: "posts", label: "Posts" },
   { key: "video", label: "Vídeo" },
 ] as const;
 
-type TabKey = (typeof TABS)[number]["key"];
+// Só o administrador vê estas abas.
+const ADMIN_TABS = [
+  { key: "usuarios", label: "Usuários" },
+  { key: "backup", label: "Backup" },
+] as const;
+
+type TabKey = (typeof BASE_TABS)[number]["key"] | (typeof ADMIN_TABS)[number]["key"];
 
 export default function AdminDashboard({
   siteImages,
+  isAdmin = false,
 }: {
   siteImages: Record<SiteImageKey, string>;
+  isAdmin?: boolean;
 }) {
+  const TABS: readonly { key: TabKey; label: string }[] = isAdmin ? [...BASE_TABS, ...ADMIN_TABS] : BASE_TABS;
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("contatos");
   const [form, setForm] = useState<SiteContacts>(EMPTY);
@@ -116,13 +127,13 @@ export default function AdminDashboard({
         </div>
       </div>
 
-      <div className="mt-6 flex gap-1 rounded-full bg-black/5 p-1 text-sm font-medium">
+      <div className="mt-6 flex gap-1 overflow-x-auto rounded-full bg-black/5 p-1 text-sm font-medium">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`flex-1 rounded-full px-4 py-2 transition ${
+            className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 transition ${
               tab === t.key
                 ? "bg-white text-nd-green-dark shadow-sm"
                 : "text-nd-graphite/60 hover:text-nd-graphite"
@@ -226,6 +237,9 @@ export default function AdminDashboard({
           <PostGenerator siteImages={siteImages} contacts={form} />
         </div>
       )}
+
+      {isAdmin && tab === "usuarios" && <UsersManager />}
+      {isAdmin && tab === "backup" && <BackupPanel />}
 
       {tab === "video" && (
         <div className="mt-8">
