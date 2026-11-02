@@ -145,3 +145,9 @@ test("texto vazio ou sem sentido não quebra", () => {
   assert.equal(r.amount, null);
   assert.equal(r.tipo, null);
 });
+
+test("descrição: a data falada não fica grudada no texto", () => {
+  assert.equal(p("Recebi três mil e quinhentos reais da Fazenda Boa Vista, serviço de 40 hectares, dia 28/10").description, "Fazenda Boa Vista, serviço de 40 hectares");
+  assert.equal(p("Paguei 150 reais de diesel no posto Ipiranga em 15/10/2026").description, "Diesel no posto Ipiranga");
+  assert.equal(p("Paguei 150 reais de diesel no posto Ipiranga ontem").description, "Diesel no posto Ipiranga");
+});

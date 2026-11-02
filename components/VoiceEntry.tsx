@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Sparkles, Type } from "lucide-react";
+import { FileAudio, Mic, MicOff, Sparkles, Type } from "lucide-react";
 import { parseSpokenEntry } from "@/lib/text-parse";
 import { todayBR } from "@/lib/format";
 import type { ScanResult } from "@/lib/receipt-scan";
@@ -48,6 +48,7 @@ export function VoiceEntry({
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
   const [note, setNote] = useState<{ kind: "ok" | "warn"; text: string } | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
   const recRef = useRef<SpeechRec | null>(null);
   const baseRef = useRef("");
 
@@ -71,6 +72,32 @@ export function VoiceEntry({
       status: r.status,
     });
     setNote({ kind: "ok", text: msg });
+  }
+
+  /** Áudio recebido (ex.: do WhatsApp): transcreve no servidor e preenche pelo texto. */
+  async function sendAudio(file: File | null) {
+    if (!file) return;
+    setNote(null);
+    setTranscribing(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/gestao/audio-transcribe", { method: "POST", body });
+      const json = (await res.json().catch(() => ({}))) as { text?: string; provider?: string; error?: string };
+      if (!res.ok || !json.text) throw new Error(json.error ?? "Não consegui transcrever o áudio.");
+      setText(json.text);
+      const r = parseSpokenEntry(json.text, todayBR());
+      if (r.amount === null && !r.category && !r.date && !r.tipo) {
+        setNote({ kind: "warn", text: `Ouvi: “${json.text}”. Não achei valor nem categoria; ajuste o texto e toque em “Preencher pelo texto”.` });
+      } else {
+        const msg = onParsed({ tipo: r.tipo, amount: r.amount, date: r.date, description: r.description, category: r.category, status: r.status });
+        setNote({ kind: "ok", text: `${msg} (áudio transcrito por ${json.provider})` });
+      }
+    } catch (e) {
+      setNote({ kind: "warn", text: e instanceof Error ? e.message : "Não consegui transcrever o áudio." });
+    } finally {
+      setTranscribing(false);
+    }
   }
 
   function toggle() {
@@ -136,6 +163,18 @@ export function VoiceEntry({
           ) : (
             <span className="text-xs text-brand-graphite/60">Este navegador não tem ditado. Use o microfone do teclado do celular ou digite.</span>
           )}
+          <label className={`${btn.ghost} inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm ${transcribing ? "pointer-events-none opacity-60" : ""}`}>
+            <FileAudio className="size-4" aria-hidden /> {transcribing ? "Transcrevendo…" : "Enviar áudio"}
+            <input
+              type="file"
+              accept="audio/*,.ogg,.opus,.m4a,.mp3,.wav,.aac"
+              className="sr-only"
+              onChange={(e) => {
+                void sendAudio(e.target.files?.[0] ?? null);
+                e.target.value = ""; // permite enviar o mesmo arquivo de novo
+              }}
+            />
+          </label>
           <button
             type="button"
             onClick={() => fill(text)}
@@ -156,7 +195,7 @@ export function VoiceEntry({
         </p>
       )}
       <p className="mt-1.5 text-xs text-brand-graphite/60">
-        Diga o que foi, o valor e onde: “recebi três mil e quinhentos reais da Fazenda Boa Vista”. Sem IA e sem custo; o texto é interpretado aqui.
+        Diga o que foi, o valor e onde: “recebi três mil e quinhentos reais da Fazenda Boa Vista”. O ditado e a leitura do texto não usam IA nem têm custo. “Enviar áudio” serve para áudio recebido (ex.: do WhatsApp) e usa uma chave de Groq, OpenAI ou Gemini.
       </p>
     </div>
   );

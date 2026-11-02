@@ -2,11 +2,13 @@ import "server-only";
 import { getSecret, type SecretName } from "@/lib/app-secrets";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  AUDIO_PROVIDERS,
   PROVIDER_IDS,
   applyOutcome,
   classifyFailure,
   normalizeConfig,
   orchestrate,
+  pickAudioModel,
   pickGeminiModel,
   pickVisionModel,
   rankGeminiModels,
@@ -449,5 +451,99 @@ export async function runHybrid<T>(
     { load: loadAiConfig, save: saveAiConfig, hasKey, getKey: (p) => getSecret(PROVIDER_META[p].secret), modelFor, now: Date.now },
     fn,
     isFatal,
+  );
+}
+
+// ------------------------------------------------------------ áudio: transcrição
+export type AudioInput = { bytes: ArrayBuffer; mime: string; name: string };
+
+/** Transcreve um áudio em português. Devolve só o texto falado. */
+export async function transcribeAudio(p: AiProvider, key: string, model: string, audio: AudioInput): Promise<string> {
+  if (p === "gemini") {
+    const b64 = Buffer.from(audio.bytes).toString("base64");
+    const text = await post(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      { "x-goog-api-key": key },
+      {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: "Transcreva fielmente este áudio em português do Brasil. Responda SOMENTE com o que foi dito, sem comentários." },
+              { inline_data: { mime_type: audio.mime.split(";")[0], data: b64 } },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0, maxOutputTokens: 800 },
+      },
+    );
+    const j = JSON.parse(text) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    const out = j.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("").trim() ?? "";
+    if (!out) throw new ProviderCallError("transcrição vazia", "empty", 200);
+    return out;
+  }
+
+  const base = PROVIDER_META[p].baseUrl!;
+  const form = new FormData();
+  form.append("file", new Blob([audio.bytes], { type: audio.mime }), audio.name);
+  form.append("model", model);
+  form.append("language", "pt");
+  form.append("response_format", "json");
+  form.append("temperature", "0");
+  let res: Response;
+  try {
+    res = await fetch(`${base}/audio/transcriptions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}` },
+      body: form,
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    throw new ProviderCallError("sem resposta (demorou ou a conexão falhou)", "transient", null);
+  }
+  const raw = await res.text();
+  if (!res.ok) {
+    let msg = raw.slice(0, 200);
+    try {
+      const j = JSON.parse(raw);
+      msg = j?.error?.message ?? msg;
+    } catch {
+      /* texto cru */
+    }
+    throw new ProviderCallError(String(msg).slice(0, 200), classifyFailure(res.status, raw), res.status);
+  }
+  const out = ((JSON.parse(raw) as { text?: string }).text ?? "").trim();
+  if (!out) throw new ProviderCallError("transcrição vazia (sem fala no áudio?)", "empty", 200);
+  return out;
+}
+
+async function audioModelFor(p: AiProvider, key: string, cfg: AiConfig): Promise<string> {
+  if (p === "gemini") return modelFor(cfg, p);
+  const picked = pickAudioModel(p, await listModels(p, key));
+  return picked ?? (p === "groq" ? "whisper-large-v3-turbo" : "whisper-1");
+}
+
+/**
+ * Transcreve o áudio com a primeira IA que sabe fazer isso (Groq, OpenAI ou Gemini — só as que têm
+ * chave, na ordem escolhida em Integrações) e passa para a próxima se uma falhar.
+ */
+export async function runTranscription(audio: AudioInput) {
+  const hasKey = await keysPresent();
+  const onlyAudio = (cfg: AiConfig): AiConfig => ({ ...cfg, order: cfg.order.filter((p) => AUDIO_PROVIDERS.includes(p)) });
+  return orchestrate(
+    {
+      load: async () => onlyAudio(await loadAiConfig()),
+      // grava só o estado das IAs de áudio, sem encurtar a ordem da configuração completa
+      save: async (c) => {
+        const real = await loadAiConfig();
+        for (const p of AUDIO_PROVIDERS) if (c.status[p]) real.status[p] = c.status[p];
+        await saveAiConfig(real);
+      },
+      hasKey,
+      getKey: (p) => getSecret(PROVIDER_META[p].secret),
+      modelFor,
+      now: Date.now,
+    },
+    async (p, key, model) => transcribeAudio(p, key, p === "gemini" ? model : await audioModelFor(p, key, await loadAiConfig()), audio),
   );
 }

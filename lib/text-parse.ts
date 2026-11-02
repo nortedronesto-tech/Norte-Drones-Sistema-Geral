@@ -272,6 +272,7 @@ function cleanDescription(original: string, cut: [number, number][]): string | n
     .replace(/^\s*(?:eu\s+)?(?:paguei|pagamos|gastei|gastamos|comprei|compramos|recebi|recebemos|abasteci)\s+(?:de|da|do|com|em|um|uma)?\s*/i, "")
     .replace(/\b(?:hoje|ontem|anteontem)\b/gi, " ")
     .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
     .replace(/^[\s,.;:\-–—]+|[\s,.;:\-–—]+$/g, "")
     .replace(/^(?:de|da|do|dos|das|em|no|na|com)\s+(?=\S{3,})/i, "");
   if (s.length < 3) return null;
@@ -299,7 +300,11 @@ export function parseSpokenEntry(text: string, today: string): SpokenEntry {
 
   const cut: [number, number][] = [];
   if (amount) cut.push([amount.start, amount.end]);
-  if (date && !/^\d/.test(n.slice(date.start, date.start + 1))) cut.push([date.start, date.end]);
+  if (date) {
+    // leva junto o "dia"/"no dia"/"em" que antecede a data ("dia 28/10", "em 15 de outubro")
+    const lead = /(?:\b(?:no|na|em|do|de)\s+)?\bdia\s*$|\b(?:em|no|na)\s*$/i.exec(original.slice(0, date.start));
+    cut.push([lead ? lead.index : date.start, date.end]);
+  }
 
   return {
     tipo,

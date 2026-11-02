@@ -407,3 +407,13 @@ test("modelo descontinuado em Groq/OpenRouter também é 'model'", () => {
   assert.equal(classifyFailure(404, "No endpoints found for google/gemini-2.0-flash-exp:free."), "model");
   assert.equal(classifyFailure(400, "google/foo is not a valid model ID"), "model");
 });
+
+import { pickAudioModel, AUDIO_PROVIDERS } from "../lib/ai-routing.ts";
+test("áudio: Groq prefere whisper large-v3-turbo; OpenAI usa whisper-1; ignora distil", () => {
+  const groq = ["llama-3.3-70b-versatile", "distil-whisper-large-v3-en", "whisper-large-v3", "whisper-large-v3-turbo"].map((id) => ({ id }));
+  assert.equal(pickAudioModel("groq", groq), "whisper-large-v3-turbo");
+  assert.equal(pickAudioModel("groq", groq.filter((m) => !m.id.includes("turbo"))), "whisper-large-v3");
+  assert.equal(pickAudioModel("groq", [{ id: "llama-3.3-70b-versatile" }]), null);
+  assert.equal(pickAudioModel("openai", [{ id: "gpt-4o-mini" }, { id: "whisper-1" }]), "whisper-1");
+  assert.deepEqual(AUDIO_PROVIDERS, ["groq", "openai", "gemini"]);
+});

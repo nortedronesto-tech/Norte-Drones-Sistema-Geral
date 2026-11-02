@@ -358,3 +358,20 @@ export function rankVisionModels(provider: AiProvider, models: ModelInfo[]): str
 export function pickVisionModel(provider: AiProvider, models: ModelInfo[]): string | null {
   return rankVisionModels(provider, models)[0] ?? null;
 }
+
+// ---------------------------------------------------------------- áudio (transcrição)
+/** IAs que transcrevem áudio: Whisper na Groq (gratuito) e na OpenAI, e o próprio Gemini. */
+export const AUDIO_PROVIDERS: AiProvider[] = ["groq", "openai", "gemini"];
+
+/** Escolhe o modelo de transcrição (Whisper) entre os que a chave enxerga. */
+export function pickAudioModel(provider: AiProvider, models: ModelInfo[]): string | null {
+  const ids = models.map((m) => m.id);
+  if (provider === "groq") {
+    const w = ids.filter((id) => /whisper/i.test(id) && !/distil/i.test(id));
+    return w.find((id) => /large-v3-turbo/.test(id)) ?? w.find((id) => /large-v3/.test(id)) ?? w[0] ?? null;
+  }
+  if (provider === "openai") {
+    return ["whisper-1", "gpt-4o-mini-transcribe"].find((id) => ids.includes(id)) ?? null;
+  }
+  return null; // Gemini usa o mesmo modelo de visão
+}
