@@ -47,16 +47,16 @@ export function CampoGuide({ secao, recipes, recipesEnabled, canWrite, canManage
 }) {
   return (
     <div className="space-y-4">
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      <div className="flex flex-wrap gap-1.5">
         {SECOES.map((t) => (
           <Link key={t.id} href={`/gestao/campo/${t.id}`} aria-current={secao === t.id ? "page" : undefined}
-            className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold ${secao === t.id ? "border-brand-green bg-brand-green text-white" : "border-black/15 bg-white text-brand-graphite/80"}`}>
+            className={`rounded-full border px-3.5 py-2 text-sm font-bold ${secao === t.id ? "border-brand-green bg-brand-green text-white" : "border-black/15 bg-white text-brand-graphite/80"}`}>
             {t.label}
           </Link>
         ))}
       </div>
 
-      <p className="flex gap-2 rounded-xl border border-brand-amber/40 bg-brand-amber/10 px-4 py-3 text-sm text-[#7a4a00]">
+      <p className="flex gap-2 rounded-xl border border-brand-amber/40 bg-brand-amber/10 px-3 py-2.5 text-xs leading-snug text-[#7a4a00] md:px-4 md:py-3 md:text-sm">
         <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden /> <span>{DISCLAIMER}</span>
       </p>
 
@@ -128,23 +128,23 @@ function CaldaCalculator({ tipo, recipes, recipesEnabled, canWrite, canManage }:
 
   return (
     <div className="space-y-4">
-      <p className="rounded-xl bg-brand-green/10 px-4 py-3 text-sm font-medium text-brand-dark">{TIPO_INFO[tipo].dica}</p>
+      <p className="rounded-xl bg-brand-green/10 px-3 py-2.5 text-xs font-medium leading-snug text-brand-dark md:px-4 md:py-3 md:text-sm">{TIPO_INFO[tipo].dica}</p>
       <Card>
         <CardTitle aside={
           <button type="button" className="text-sm font-bold text-brand-green underline"
             onClick={() => { setArea(EXAMPLE.area); setRate(EXAMPLE.rate); setTank(EXAMPLE.tank); setRows(EXAMPLE.rows); setTitle("Exemplo (valores fictícios)"); }}>
             Ver exemplo
           </button>}>Dados da aplicação</CardTitle>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div>
             <label className={labelClass} htmlFor="area">Área (ha)</label>
             <input id="area" inputMode="decimal" className={inputClass} value={area} onChange={(e) => setArea(e.target.value)} placeholder="ex.: 25" />
           </div>
           <div>
-            <label className={labelClass} htmlFor="rate">Calda por hectare (L/ha)</label>
+            <label className={labelClass} htmlFor="rate">Calda (L/ha)</label>
             <input id="rate" inputMode="decimal" className={inputClass} value={rate} onChange={(e) => setRate(e.target.value)} />
           </div>
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <label className={labelClass} htmlFor="tank">Tanque do drone (L)</label>
             <input id="tank" inputMode="decimal" className={inputClass} value={tank} onChange={(e) => setTank(e.target.value)} />
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -291,7 +291,7 @@ function SolidosCalculator() {
 
   return (
     <div className="space-y-4">
-      <p className="rounded-xl bg-brand-green/10 px-4 py-3 text-sm font-medium text-brand-dark">
+      <p className="rounded-xl bg-brand-green/10 px-3 py-2.5 text-xs font-medium leading-snug text-brand-dark md:px-4 md:py-3 md:text-sm">
         Granulados e pós aplicados secos, sem água (adubo, corretivo, isca): a conta é em kg por hectare e por carga da caçamba do drone. Dose da bula ou do receituário.
       </p>
       <Card>
