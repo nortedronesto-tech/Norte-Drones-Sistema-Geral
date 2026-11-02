@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { ArrowDownToLine, ArrowUpFromLine, Camera, Plus } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Camera, FileBarChart, Plus, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getAccess } from "@/lib/access";
 import { getAccountBalances, getPartners, getReservePct, sum } from "@/lib/data";
 import { formatBRL, formatDateShort, monthLabel, monthKey, todayBR } from "@/lib/format";
+import { categoryTotals, dueBuckets, monthReport, monthlySeries, shiftMonth, type Tx } from "@/lib/dashboard";
+import { HBars, MonthlyBars } from "@/components/charts";
 import { ACCOUNT_KIND_LABEL } from "@/lib/constants";
 import { btn, Card, CardTitle, EmptyState, Money, PageHeader, StatusBadge } from "@/components/ui";
 import type { PartnerTotals, Transaction } from "@/lib/types";
@@ -14,14 +16,17 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const canWrite = (await getAccess())?.canWrite ?? false;
   const today = todayBR();
-  const monthStart = `${monthKey(today)}-01`;
 
-  const [accounts, reservePct, partners, reserveRows, monthRows, recent, totalsRes] = await Promise.all([
+  const month = monthKey(today);
+  const from = `${shiftMonth(month, -5)}-01`;
+  const TXCOLS = "type, amount, status, date, paid_at, category";
+  const [accounts, reservePct, partners, reserveRows, paidRes, pendingRes, recent, totalsRes] = await Promise.all([
     getAccountBalances(),
     getReservePct(),
     getPartners(),
     supabase.from("reserve_fund_entries").select("amount"),
-    supabase.from("transactions").select("type, amount").eq("status", "pago").gte("paid_at", monthStart),
+    supabase.from("transactions").select(TXCOLS).eq("status", "pago").gte("paid_at", from),
+    supabase.from("transactions").select(TXCOLS).neq("status", "pago"),
     supabase
       .from("transactions")
       .select("*, bank_accounts(name)")
@@ -35,8 +40,16 @@ export default async function DashboardPage() {
   const reserve = sum((reserveRows.data ?? []).map((r) => Number(r.amount)));
   const toReceive = sum(accounts.map((a) => a.to_receive));
   const toPay = sum(accounts.map((a) => a.to_pay));
-  const monthIn = sum((monthRows.data ?? []).filter((t) => t.type === "entrada").map((t) => Number(t.amount)));
-  const monthOut = sum((monthRows.data ?? []).filter((t) => t.type === "saida").map((t) => Number(t.amount)));
+  const toTx = (r: Record<string, unknown>) => ({ ...r, amount: Number(r.amount) }) as unknown as Tx;
+  const paidRows = (paidRes.data ?? []).map(toTx);
+  const pendingRows = (pendingRes.data ?? []).map(toTx);
+  const series = monthlySeries(paidRows, month, 6);
+  const report = monthReport(paidRows, month);
+  const monthIn = report.entradas;
+  const monthOut = report.saidas;
+  const topExpenses = categoryTotals(paidRows.filter((t) => t.paid_at?.startsWith(month)), "saida").slice(0, 6);
+  const payBuckets = dueBuckets(pendingRows, "a_pagar", today);
+  const recBuckets = dueBuckets(pendingRows, "a_receber", today);
   const visibleAccounts = accounts.filter((a) => a.active || a.balance !== 0);
   const partnerTotals = (totalsRes.data ?? []) as PartnerTotals[];
   const transactions = (recent.data ?? []).map((t) => ({ ...t, amount: Number(t.amount) })) as Transaction[];
@@ -45,7 +58,7 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         title="Visão geral"
-        subtitle="Saldos das contas, reserva e rateio entre os sócios."
+        subtitle="Resultados do negócio: saldos, mês, vencimentos e rateio entre os sócios."
         action={
           canWrite ? (
             <div className="hidden md:block">
@@ -100,7 +113,32 @@ export default async function DashboardPage() {
           <p className="num mt-1 text-xl font-extrabold">{formatBRL(monthOut)}</p>
         </Card>
       </div>
-      <p className="mt-2 text-xs text-brand-graphite/50">Mês de referência: {monthLabel(monthKey(today))} (valores já pagos/recebidos).</p>
+      <p className="mt-2 text-xs text-brand-graphite/50">Mês de referência: {monthLabel(month)} (valores já pagos/recebidos).</p>
+
+      {/* Resultado e gráficos */}
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardTitle aside={<Link href={`/gestao/relatorios?mes=${month}`} className="flex items-center gap-1 text-sm font-bold text-brand-green hover:underline"><FileBarChart className="size-4" aria-hidden /> Relatório</Link>}>
+            Entradas × saídas · 6 meses
+          </CardTitle>
+          <MonthlyBars data={series} />
+          <p className="mt-3 flex items-center gap-2 border-t border-black/[0.06] pt-3 text-sm">
+            <TrendingUp className="size-4 text-brand-green" aria-hidden /> Resultado do mês:
+            <strong className={`num ${report.resultado < 0 ? "text-danger" : "text-brand-green"}`}>{formatBRL(report.resultado)}</strong>
+            {report.margem !== null && <span className="text-xs text-brand-graphite/60">margem {report.margem}%</span>}
+          </p>
+        </Card>
+        <Card>
+          <CardTitle aside={<span className="text-xs font-semibold text-brand-graphite/50">{monthLabel(month)}</span>}>Para onde foi o dinheiro</CardTitle>
+          {topExpenses.length === 0 ? <EmptyState>Sem despesas pagas neste mês.</EmptyState> : <HBars items={topExpenses.map((c) => ({ label: c.category, value: c.amount, pct: c.pct }))} />}
+        </Card>
+      </div>
+
+      {/* Vencimentos */}
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <DueCard title="Contas a pagar" href="/gestao/contas-a-pagar" b={payBuckets} />
+        <DueCard title="Contas a receber" href="/gestao/contas-a-receber" b={recBuckets} />
+      </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         {/* Saldo por conta */}
@@ -175,5 +213,29 @@ export default async function DashboardPage() {
         )}
       </Card>
     </>
+  );
+}
+
+function DueCard({ title, href, b }: { title: string; href: string; b: ReturnType<typeof dueBuckets> }) {
+  const rows = [
+    { label: "Atrasadas", ...b.overdue, tone: "text-danger" },
+    { label: "Próximos 7 dias", ...b.week, tone: "text-[#9a5a00]" },
+    { label: "Depois", ...b.later, tone: "" },
+  ];
+  return (
+    <Card>
+      <CardTitle aside={<Link href={href} className="text-sm font-bold text-brand-green hover:underline">Ver todas</Link>}>{title}</CardTitle>
+      <ul className="divide-y divide-black/[0.06]">
+        {rows.map((r) => (
+          <li key={r.label} className="flex items-center justify-between py-2.5 text-sm">
+            <span className={`flex items-center gap-1.5 font-semibold ${r.tone}`}>
+              {r.label === "Atrasadas" && r.count > 0 && <AlertTriangle className="size-4" aria-hidden />}
+              {r.label} <span className="text-xs font-normal text-brand-graphite/50">({r.count})</span>
+            </span>
+            <span className="num font-bold">{formatBRL(r.amount)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

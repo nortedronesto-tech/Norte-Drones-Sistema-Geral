@@ -12,8 +12,12 @@ const PAGES: Tab[] = [
   { label: "Gestão", href: "/gestao" },
   { label: "Lançamentos", href: "/gestao/lancamentos" },
   { label: "Despesa com foto", href: "/gestao/despesa-foto" },
+  { label: "A pagar", href: "/gestao/contas-a-pagar" },
+  { label: "A receber", href: "/gestao/contas-a-receber" },
+  { label: "Conciliação", href: "/gestao/conciliacao" },
   { label: "Reserva", href: "/gestao/reserva" },
-  { label: "Guia de campo", href: "/gestao/campo" },
+  { label: "Relatórios", href: "/gestao/relatorios" },
+  { label: "Campo", href: "/gestao/campo/pulverizacao" },
   { label: "Cadastros", href: "/gestao/cadastros" },
   { label: "Site público", href: "/", external: true },
 ];

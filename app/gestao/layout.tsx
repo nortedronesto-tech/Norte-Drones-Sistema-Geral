@@ -37,7 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-dvh bg-brand-mist text-brand-graphite">
       <Nav userName={access.name} email={access.email} role={access.role} />
-      <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-5 md:ml-64 md:max-w-none md:px-8 md:pb-10 md:pt-8">
+      <main className="mx-auto w-full max-w-5xl md:w-auto px-4 pb-28 pt-5 md:ml-64 md:max-w-none md:px-8 md:pb-10 md:pt-8 print:ml-0 print:max-w-none print:p-0">
         <div className="mx-auto max-w-5xl">{children}</div>
       </main>
       <ServiceWorkerRegister />

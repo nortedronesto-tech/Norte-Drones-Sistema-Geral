@@ -135,3 +135,49 @@ export function recipeText(title: string, input: CaldaInput, r: Extract<CaldaRes
   lines.push("Siga a bula e o receituário agronômico. Faça o teste de compatibilidade antes. Use EPI.");
   return lines.join("\n");
 }
+
+// ------------------------------------------------------------------ sólidos (granulados / pó aplicados secos)
+// Ex.: adubo ou granulado em drone com caçamba (spreader). Aqui não há água: a conta é kg por hectare e por carga.
+export type SolidosInput = { areaHa: number; doseKgHa: number; hopperKg: number; bagKg?: number };
+export type SolidosResult = {
+  ok: true;
+  totalKg: number;
+  haPerLoad: number;
+  loadCount: number;
+  loads: { index: number; kg: number; ha: number; full: boolean }[];
+  bags?: number;
+  warnings: string[];
+};
+
+export function calcSolidos(i: SolidosInput): SolidosResult | { ok: false; error: string } {
+  if (!(i.areaHa > 0)) return { ok: false, error: "Informe a área em hectares." };
+  if (!(i.doseKgHa > 0)) return { ok: false, error: "Informe a dose em kg por hectare (da bula ou do receituário)." };
+  if (!(i.hopperKg > 0)) return { ok: false, error: "Informe a capacidade da caçamba do drone em kg." };
+  const totalKg = round(i.areaHa * i.doseKgHa, 3);
+  const haPerLoad = i.hopperKg / i.doseKgHa;
+  const loadCount = Math.ceil(round(totalKg / i.hopperKg, 6));
+  if (loadCount > 200) return { ok: false, error: "São mais de 200 cargas: confira a área, a dose e a caçamba." };
+  const loads = Array.from({ length: loadCount }, (_, k) => {
+    const kg = Math.min(i.hopperKg, round(totalKg - k * i.hopperKg, 3));
+    return { index: k + 1, kg, ha: round(kg / i.doseKgHa, 3), full: kg >= i.hopperKg - 1e-9 };
+  });
+  const warnings: string[] = [];
+  if (i.doseKgHa > 1000) warnings.push("Dose acima de 1.000 kg/ha: confira se a unidade está certa (kg por hectare).");
+  return {
+    ok: true, totalKg, haPerLoad: round(haPerLoad, 3), loadCount, loads,
+    bags: i.bagKg && i.bagKg > 0 ? Math.ceil(round(totalKg / i.bagKg, 6)) : undefined,
+    warnings,
+  };
+}
+
+export function solidosText(title: string, i: SolidosInput, r: Extract<SolidosResult, { ok: true }>): string {
+  const n = (v: number, d = 1) => v.toLocaleString("pt-BR", { maximumFractionDigits: d });
+  const out = [
+    `*${title}*`,
+    `Área: ${n(i.areaHa, 2)} ha · Dose: ${n(i.doseKgHa, 2)} kg/ha · Caçamba: ${n(i.hopperKg)} kg`,
+    `Total: ${n(r.totalKg)} kg em ${r.loadCount} carga(s)${r.bags ? ` (${r.bags} saco(s) de ${n(i.bagKg ?? 0)} kg)` : ""}`,
+  ];
+  for (const l of r.loads) out.push(`Carga ${l.index}${l.full ? "" : " (parcial)"}: ${n(l.kg)} kg · ${n(l.ha, 2)} ha`);
+  out.push("Dose conforme bula/receituário do agrônomo.");
+  return out.join("\n");
+}

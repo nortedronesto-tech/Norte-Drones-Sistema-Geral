@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { BookOpen, Calculator, Copy, HelpCircle, Plus, Search, Share2, Trash2, TriangleAlert } from "lucide-react";
-import { calcCalda, FORMULATIONS, recipeText, type DoseUnit, type Formulation, type Product } from "@/lib/calda";
+import Link from "next/link";
+import { Copy, Plus, Search, Share2, Trash2, TriangleAlert } from "lucide-react";
+import { calcCalda, calcSolidos, FORMULATIONS, recipeText, solidosText, type DoseUnit, type Formulation, type Product } from "@/lib/calda";
 import { DISCLAIMER, EMERGENCY, FAQ, FAQ_CATEGORIES, SOURCES, STEPS } from "@/lib/campo-content";
 import { saveRecipe, deleteRecipe } from "@/app/gestao/campo/actions";
 import { btn, Card, CardTitle, EmptyState, FormError, inputClass, labelClass } from "@/components/ui";
@@ -21,11 +22,6 @@ export type SavedRecipe = {
 type Row = { name: string; dose: string; unit: DoseUnit; form: Formulation };
 const UNITS: DoseUnit[] = ["L/ha", "mL/ha", "kg/ha", "g/ha"];
 const TANKS = [10, 16, 20, 30, 40, 50];
-const TABS = [
-  { id: "calc", label: "Calculadora", icon: Calculator },
-  { id: "steps", label: "Passo a passo", icon: BookOpen },
-  { id: "faq", label: "Tira-dúvidas", icon: HelpCircle },
-] as const;
 
 const num = (s: string) => Number(s.replace(",", "."));
 const emptyRow = (): Row => ({ name: "", dose: "", unit: "L/ha", form: "emulsao" });
@@ -41,18 +37,32 @@ const EXAMPLE = {
   ] as Row[],
 };
 
-export function CampoGuide({ recipes, recipesEnabled, canWrite, canManage }: {
-  recipes: SavedRecipe[]; recipesEnabled: boolean; canWrite: boolean; canManage: boolean;
+export type Secao = "pulverizacao" | "foliar" | "solidos" | "passo-a-passo" | "duvidas";
+
+export const SECOES: { id: Secao; label: string }[] = [
+  { id: "pulverizacao", label: "Pulverização" },
+  { id: "foliar", label: "Foliar" },
+  { id: "solidos", label: "Sólidos" },
+  { id: "passo-a-passo", label: "Passo a passo" },
+  { id: "duvidas", label: "Tira-dúvidas" },
+];
+
+const TIPO_INFO: Record<"pulverizacao" | "foliar", { form: Formulation; dica: string }> = {
+  pulverizacao: { form: "emulsao", dica: "Defensivos (fungicida, inseticida, herbicida): a dose e a mistura são as do receituário. Faça sempre o teste de jarra." },
+  foliar: { form: "solucao", dica: "Adubo foliar e nutrientes: confira a compatibilidade com os defensivos antes de misturar e respeite a concentração máxima da bula, que evita queima de folha." },
+};
+
+export function CampoGuide({ secao, recipes, recipesEnabled, canWrite, canManage }: {
+  secao: Secao; recipes: SavedRecipe[]; recipesEnabled: boolean; canWrite: boolean; canManage: boolean;
 }) {
-  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("calc");
   return (
     <div className="space-y-4">
-      <div role="tablist" className="grid grid-cols-3 gap-1 rounded-2xl bg-white p-1 shadow-sm">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-            className={`flex flex-col items-center gap-1 rounded-xl px-2 py-2.5 text-xs font-bold sm:flex-row sm:justify-center sm:gap-2 sm:text-sm ${tab === id ? "bg-brand-green text-white" : "text-brand-graphite/70 hover:bg-black/[0.04]"}`}>
-            <Icon className="size-5" aria-hidden /> {label}
-          </button>
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        {SECOES.map((t) => (
+          <Link key={t.id} href={`/gestao/campo/${t.id}`} aria-current={secao === t.id ? "page" : undefined}
+            className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold ${secao === t.id ? "border-brand-green bg-brand-green text-white" : "border-black/15 bg-white text-brand-graphite/80"}`}>
+            {t.label}
+          </Link>
         ))}
       </div>
 
@@ -60,9 +70,12 @@ export function CampoGuide({ recipes, recipesEnabled, canWrite, canManage }: {
         <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden /> <span>{DISCLAIMER}</span>
       </p>
 
-      {tab === "calc" && <CaldaCalculator recipes={recipes} recipesEnabled={recipesEnabled} canWrite={canWrite} canManage={canManage} />}
-      {tab === "steps" && <Steps />}
-      {tab === "faq" && <Faq />}
+      {(secao === "pulverizacao" || secao === "foliar") && (
+        <CaldaCalculator key={secao} tipo={secao} recipes={recipes} recipesEnabled={recipesEnabled} canWrite={canWrite} canManage={canManage} />
+      )}
+      {secao === "solidos" && <SolidosCalculator />}
+      {secao === "passo-a-passo" && <Steps />}
+      {secao === "duvidas" && <Faq />}
 
       <Card>
         <CardTitle>Fontes de referência</CardTitle>
@@ -78,13 +91,14 @@ export function CampoGuide({ recipes, recipesEnabled, canWrite, canManage }: {
 }
 
 // ------------------------------------------------------------------ calculadora
-function CaldaCalculator({ recipes, recipesEnabled, canWrite, canManage }: {
-  recipes: SavedRecipe[]; recipesEnabled: boolean; canWrite: boolean; canManage: boolean;
+function CaldaCalculator({ tipo, recipes, recipesEnabled, canWrite, canManage }: {
+  tipo: "pulverizacao" | "foliar"; recipes: SavedRecipe[]; recipesEnabled: boolean; canWrite: boolean; canManage: boolean;
 }) {
   const [area, setArea] = useState("");
   const [rate, setRate] = useState("10");
   const [tank, setTank] = useState("40");
-  const [rows, setRows] = useState<Row[]>([emptyRow()]);
+  const newRow = (): Row => ({ ...emptyRow(), form: TIPO_INFO[tipo].form });
+  const [rows, setRows] = useState<Row[]>([newRow()]);
   const [title, setTitle] = useState("");
   const [crop, setCrop] = useState("");
   const [target, setTarget] = useState("");
@@ -124,6 +138,7 @@ function CaldaCalculator({ recipes, recipesEnabled, canWrite, canManage }: {
 
   return (
     <div className="space-y-4">
+      <p className="rounded-xl bg-brand-green/10 px-4 py-3 text-sm font-medium text-brand-dark">{TIPO_INFO[tipo].dica}</p>
       <Card>
         <CardTitle aside={
           <button type="button" className="text-sm font-bold text-brand-green underline"
@@ -178,7 +193,7 @@ function CaldaCalculator({ recipes, recipesEnabled, canWrite, canManage }: {
           ))}
         </div>
         {rows.length < 20 && (
-          <button type="button" className={`${btn.ghost} mt-3`} onClick={() => setRows((rs) => [...rs, emptyRow()])}><Plus className="size-5" aria-hidden /> Adicionar produto</button>
+          <button type="button" className={`${btn.ghost} mt-3`} onClick={() => setRows((rs) => [...rs, newRow()])}><Plus className="size-5" aria-hidden /> Adicionar produto</button>
         )}
       </Card>
 
@@ -265,6 +280,61 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl bg-brand-mist px-2 py-3">
       <p className="num text-lg font-extrabold text-brand-dark">{value}</p>
       <p className="text-[11px] font-semibold text-brand-graphite/60">{label}</p>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ sólidos (granulado / pó seco)
+function SolidosCalculator() {
+  const [area, setArea] = useState("");
+  const [dose, setDose] = useState("");
+  const [hopper, setHopper] = useState("");
+  const [bag, setBag] = useState("25");
+  const [title, setTitle] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const input = { areaHa: num(area), doseKgHa: num(dose), hopperKg: num(hopper), bagKg: num(bag) || undefined };
+  const result = area.trim() || dose.trim() || hopper.trim() ? calcSolidos(input) : null;
+  const text = result?.ok ? solidosText(title.trim() || "Aplicação de sólidos", input, result) : "";
+  const copy = async () => { try { await navigator.clipboard.writeText(text); setMsg("Copiado."); } catch { setMsg("Não deu para copiar."); } setTimeout(() => setMsg(null), 3000); };
+  const share = async () => { if (navigator.share) { try { await navigator.share({ text }); } catch { /* cancelado */ } } else await copy(); };
+
+  return (
+    <div className="space-y-4">
+      <p className="rounded-xl bg-brand-green/10 px-4 py-3 text-sm font-medium text-brand-dark">
+        Granulados e pós aplicados secos, sem água (adubo, corretivo, isca): a conta é em kg por hectare e por carga da caçamba do drone. Dose da bula ou do receituário.
+      </p>
+      <Card>
+        <CardTitle aside={<button type="button" className="text-sm font-bold text-brand-green underline" onClick={() => { setArea("12"); setDose("50"); setHopper("40"); setTitle("Exemplo (valores fictícios)"); }}>Ver exemplo</button>}>Dados da aplicação</CardTitle>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><label className={labelClass} htmlFor="sarea">Área (ha)</label><input id="sarea" inputMode="decimal" className={inputClass} value={area} onChange={(e) => setArea(e.target.value)} /></div>
+          <div><label className={labelClass} htmlFor="sdose">Dose (kg por hectare)</label><input id="sdose" inputMode="decimal" className={inputClass} value={dose} onChange={(e) => setDose(e.target.value)} /></div>
+          <div><label className={labelClass} htmlFor="shop">Caçamba do drone (kg)</label><input id="shop" inputMode="decimal" className={inputClass} value={hopper} onChange={(e) => setHopper(e.target.value)} /></div>
+          <div><label className={labelClass} htmlFor="sbag">Saco do produto (kg, opcional)</label><input id="sbag" inputMode="decimal" className={inputClass} value={bag} onChange={(e) => setBag(e.target.value)} /></div>
+        </div>
+      </Card>
+      {result && !result.ok && <FormError message={result.error} />}
+      {result?.ok && (
+        <Card>
+          <CardTitle>Resultado</CardTitle>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <Stat label="Produto total" value={`${result.totalKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`} />
+            <Stat label="Cada carga cobre" value={`${result.haPerLoad.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ha`} />
+            <Stat label="Cargas" value={`${result.loadCount}`} />
+          </div>
+          {result.bags && <p className="mt-3 text-sm font-semibold">Leve pelo menos <strong>{result.bags} saco(s)</strong> de {num(bag)} kg.</p>}
+          {result.warnings.map((w) => <p key={w} className="mt-3 rounded-xl bg-brand-amber/10 px-3 py-2 text-sm text-[#7a4a00]">{w}</p>)}
+          <ol className="mt-3 space-y-1 text-sm">
+            {result.loads.map((l) => <li key={l.index}>Carga {l.index}{l.full ? "" : " (parcial)"}: <strong>{l.kg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg</strong> · {l.ha.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ha</li>)}
+          </ol>
+          <div className="mt-4"><label className={labelClass} htmlFor="stitle">Nome (para o resumo)</label><input id="stitle" className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex.: Pasto fazenda X" /></div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className={btn.primary} onClick={share}><Share2 className="size-5" aria-hidden /> Enviar (WhatsApp)</button>
+            <button type="button" className={btn.ghost} onClick={copy}><Copy className="size-5" aria-hidden /> Copiar</button>
+          </div>
+          {msg && <p role="status" className="mt-2 text-sm font-semibold text-brand-green">{msg}</p>}
+        </Card>
+      )}
     </div>
   );
 }

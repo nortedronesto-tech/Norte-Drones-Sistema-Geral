@@ -183,3 +183,24 @@ export async function signOut() {
   await supabase.auth.signOut();
   redirect("/login");
 }
+
+// ------------------------------------------------------------- conciliação bancária
+export async function setReconciled(ids: string[], on: boolean): Promise<ActionResult> {
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || !ids.every((i) => z.uuid().safeParse(i).success)) {
+    return fail("Lançamentos inválidos");
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("transactions")
+    .update({ reconciled_at: on ? todayBR() : null })
+    .in("id", ids)
+    .eq("status", "pago")
+    .select("id");
+  if (error) {
+    if (error.code === "42703" || error.code === "PGRST204") return fail("Conciliação ainda não foi ativada (falta rodar a migration 0008 no Supabase).");
+    return dbError(error);
+  }
+  if (!data?.length) return fail("Seu nível de acesso não permite conciliar.");
+  revalidatePath("/gestao/conciliacao");
+  return { ok: true };
+}
