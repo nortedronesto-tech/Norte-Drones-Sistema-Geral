@@ -136,29 +136,17 @@ export function drawOsPdf(doc: jsPDF, o: OsData, opts: OsPdfOptions): void {
     y += 4;
   }
 
-  // Autorização por OK no WhatsApp (sem contrato nem assinatura)
+  // Autorização leve: só um OK no WhatsApp (sem contrato, sem assinatura, sem letras miúdas)
   const kind = opts.kind ?? "autorizacao";
   const ok = o.clientOkAt;
-  ensure(40);
+  ensure(30);
   y += 4;
-  if (ok) {
-    doc.setFillColor(...MIST).setDrawColor(...GREEN).setLineWidth(0.6).roundedRect(M, y - 4, W - 2 * M, 26, 2.5, 2.5, "FD");
-    doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...GREEN).text("SERVIÇO AUTORIZADO PELO CLIENTE", M + 6, y + 4);
-    doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(...INK).text(`Confirmado por OK no WhatsApp em ${brDate(ok)}.`, M + 6, y + 11);
-    doc.setFontSize(8).setTextColor(...MUTED).text("A conversa guarda a data e a hora da resposta.", M + 6, y + 17);
-    y += 30;
-  } else {
-    doc.setFillColor(...MIST).setDrawColor(...GOLD).setLineWidth(0.8).roundedRect(M, y - 4, W - 2 * M, 34, 2.5, 2.5, "FD");
-    doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...GREEN).text(kind === "autorizacao" ? "AUTORIZAÇÃO DO SERVIÇO" : "CONFIRMAÇÃO DO SERVIÇO", M + 6, y + 4);
-    doc.setFont("helvetica", "normal").setFontSize(10.5).setTextColor(...INK);
-    const msg = kind === "autorizacao"
-      ? "Para autorizar a aplicação nas condições acima, é só responder a mensagem no WhatsApp com:"
-      : "O serviço foi executado nas condições acima. Para confirmar, responda a mensagem no WhatsApp com:";
-    doc.text(doc.splitTextToSize(msg, W - 2 * M - 12) as string[], M + 6, y + 11);
-    doc.setFont("helvetica", "bold").setFontSize(15).setTextColor(...GREEN).text("OK", M + 6, y + 24);
-    doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...MUTED).text("Sem contrato e sem assinatura: a resposta no WhatsApp fica registrada, com data e hora.", M + 22, y + 24);
-    y += 38;
-  }
+  const line = ok
+    ? `Serviço autorizado em ${brDate(ok)}. Obrigado!`
+    : kind === "autorizacao" ? "Para autorizar o serviço, é só responder OK no WhatsApp." : "Serviço realizado. Se estiver tudo certo, responda OK no WhatsApp.";
+  doc.setFillColor(...MIST).setDrawColor(...(ok ? GREEN : GOLD)).setLineWidth(0.8).roundedRect(M, y - 4, W - 2 * M, 16, 2.5, 2.5, "FD");
+  doc.setFont("helvetica", "bold").setFontSize(12).setTextColor(...GREEN).text(line, W / 2, y + 6, { align: "center" });
+  y += 20;
 
   // Rodapé em todas as páginas
   const pages = doc.getNumberOfPages();

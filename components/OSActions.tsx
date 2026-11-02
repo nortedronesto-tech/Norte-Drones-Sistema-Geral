@@ -92,7 +92,7 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-brand-graphite/80">Mande o PDF e peça para o cliente responder <strong>OK</strong>. Quando ele responder, registre aqui. Guarde a conversa no WhatsApp: ela traz a data e a hora.</p>
+            <p className="text-sm text-brand-graphite/80">Mande o PDF e peça um <strong>OK</strong> no WhatsApp. Quando ele responder, registre aqui.</p>
             {canWrite ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-2">
