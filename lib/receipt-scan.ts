@@ -4,6 +4,8 @@ export type ScanResult = {
   date: string | null;
   description: string | null;
   category: string | null;
+  /** "pendente" = a pagar/a receber (vem da fala; a leitura de foto não informa) */
+  status?: "pago" | "pendente" | null;
   /** qual IA leu a nota (ex.: "Google Gemini") */
   provider?: string;
 };

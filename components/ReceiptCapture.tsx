@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Camera, ImagePlus, RefreshCw, ScanText, Sparkles } from "lucide-react";
 import { scanReceipt, type ScanResult } from "@/lib/receipt-scan";
 import { normalizeImageFile } from "@/lib/image";
+import { ocrReceipt } from "@/lib/receipt-ocr";
 import { btn, labelClass } from "./ui";
 
 type Note = { kind: "ok" | "warn"; text: string } | null;
@@ -28,21 +29,48 @@ export function ReceiptCapture({
 }) {
   const [scanning, setScanning] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [scanLabel, setScanLabel] = useState("Lendo a nota…");
   const [previewBroken, setPreviewBroken] = useState(false);
   const [note, setNote] = useState<Note>(null);
   const run = useRef(0);
 
-  async function scan(f: File) {
+  /** Leitura no aparelho (OCR): sem IA, sem chave, sem cota. */
+  async function scanLocal(f: File, id: number, prefix = "") {
+    setScanLabel("Lendo a foto no seu aparelho…");
+    try {
+      const data = await ocrReceipt(f, (s) => id === run.current && setScanLabel(s));
+      if (id !== run.current) return;
+      const found = data.amount !== null || data.date !== null || data.description !== null;
+      setNote({
+        kind: found ? "ok" : "warn",
+        text: found
+          ? `${prefix}${onScan(data)} (lido no seu aparelho, sem IA — confira o valor com atenção)`
+          : `${prefix}Li a foto, mas não achei valor nem data. Tente com mais luz e a nota inteira no quadro, ou use “Falar ou digitar”.`,
+      });
+    } catch (e) {
+      if (id !== run.current) return;
+      setNote({ kind: "warn", text: `${prefix}${e instanceof Error ? e.message : "Não consegui ler a foto."} Use “Falar ou digitar” abaixo.` });
+    }
+  }
+
+  /** Tenta a IA; se ela falhar (sem crédito, sobrecarregada, sem chave…), lê a foto no aparelho. */
+  async function scan(f: File, localOnly = false) {
     const id = ++run.current;
     setScanning(true);
     setNote(null);
     try {
-      const data = await scanReceipt(f);
-      if (id !== run.current) return; // trocou a foto no meio
-      setNote({ kind: "ok", text: onScan(data) + (data.provider ? ` (lido por ${data.provider})` : "") });
-    } catch (e) {
-      if (id !== run.current) return;
-      setNote({ kind: "warn", text: e instanceof Error ? e.message : "Não foi possível ler a nota." });
+      if (localOnly) return await scanLocal(f, id);
+      setScanLabel("Lendo a nota…");
+      try {
+        const data = await scanReceipt(f);
+        if (id !== run.current) return; // trocou a foto no meio
+        setNote({ kind: "ok", text: onScan(data) + (data.provider ? ` (lido por ${data.provider})` : "") });
+      } catch (e) {
+        if (id !== run.current) return;
+        const why = e instanceof Error ? e.message : "";
+        // foto ilegível para a IA não melhora com OCR; qualquer outra falha (IA fora do ar, sem chave…) cai no aparelho
+        await scanLocal(f, id, /^Não consegui ler essa foto/.test(why) ? "A IA não conseguiu ler. " : "A IA não respondeu agora — ");
+      }
     } finally {
       if (id === run.current) setScanning(false);
     }
@@ -90,9 +118,14 @@ export function ReceiptCapture({
             <p className="truncate text-sm font-semibold">{file.name}</p>
             <p className="text-xs text-brand-graphite/60">{(file.size / 1024 / 1024).toFixed(1)} MB — será reduzida antes de enviar</p>
             {!scanning && (
-              <button type="button" onClick={() => void scan(file)} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-brand-green hover:underline">
-                <ScanText className="size-3.5" aria-hidden /> Ler a nota de novo
-              </button>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                <button type="button" onClick={() => void scan(file)} className="inline-flex items-center gap-1 text-xs font-bold text-brand-green hover:underline">
+                  <ScanText className="size-3.5" aria-hidden /> Ler a nota de novo
+                </button>
+                <button type="button" onClick={() => void scan(file, true)} className="inline-flex items-center gap-1 text-xs font-bold text-brand-green hover:underline">
+                  <ScanText className="size-3.5" aria-hidden /> Ler sem IA (no aparelho)
+                </button>
+              </div>
             )}
           </div>
           <button type="button" onClick={() => pick(null)} className="rounded-lg p-2 text-brand-graphite/70 hover:bg-black/5" aria-label="Trocar foto">
@@ -119,7 +152,7 @@ export function ReceiptCapture({
       )}
       {scanning && (
         <p role="status" className="mt-2 flex items-center gap-2 rounded-xl bg-brand-green/10 px-3 py-2 text-sm font-semibold text-brand-dark">
-          <Sparkles className="size-4 animate-pulse text-brand-green" aria-hidden /> Lendo a nota…
+          <Sparkles className="size-4 animate-pulse text-brand-green" aria-hidden /> {scanLabel}
         </p>
       )}
       {note && (

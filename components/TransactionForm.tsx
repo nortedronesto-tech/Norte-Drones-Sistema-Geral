@@ -9,6 +9,7 @@ import { previewSplit } from "@/lib/split";
 import { removeReceipt, uploadReceipt } from "@/lib/receipt-upload";
 import type { ScanResult } from "@/lib/receipt-scan";
 import { ReceiptCapture } from "./ReceiptCapture";
+import { VoiceEntry } from "./VoiceEntry";
 import type { BankAccount, Partner, TxStatus, TxType } from "@/lib/types";
 import { btn, Card, FormError, inputClass, labelClass } from "./ui";
 
@@ -65,6 +66,7 @@ export function TransactionForm({
     else if (nextType !== type) setCategory(cats[0]);
     if (d.date && d.date <= todayBR() && d.date >= `${Number(todayBR().slice(0, 4)) - 2}-01-01`) { setDate(d.date); filled.push("data"); }
     if (d.description) { setDescription(d.description); filled.push("descrição"); }
+    if (d.status) { setPaid(d.status === "pago"); filled.push(d.status === "pago" ? "situação (pago/recebido)" : "situação (pendente)"); }
     return filled.length
       ? `Preenchi ${filled.join(", ")}. Confira antes de salvar.`
       : "Não encontrei dados nessa foto. Preencha manualmente.";
@@ -101,6 +103,8 @@ export function TransactionForm({
   return (
     <form onSubmit={submit} className="space-y-5">
       <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} label="Tem a foto da nota? (opcional)" />
+
+      <VoiceEntry onParsed={applyScan} />
 
       <div className="flex gap-2" role="group" aria-label="Tipo de lançamento">
         <button type="button" onClick={() => changeType("entrada")} className={seg(type === "entrada", "in")} aria-pressed={type === "entrada"}>Entrada</button>

@@ -7,6 +7,7 @@ import { createTransaction } from "@/app/gestao/actions";
 import { removeReceipt, uploadReceipt } from "@/lib/receipt-upload";
 import type { ScanResult } from "@/lib/receipt-scan";
 import { ReceiptCapture } from "./ReceiptCapture";
+import { VoiceEntry } from "./VoiceEntry";
 import { EXPENSE_CATEGORIES } from "@/lib/constants";
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
 import type { BankAccount } from "@/lib/types";
@@ -103,6 +104,7 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
     if (d.category && (EXPENSE_CATEGORIES as readonly string[]).includes(d.category)) { setCategory(d.category); filled.push("categoria"); }
     if (d.date && d.date <= todayBR() && d.date >= `${Number(todayBR().slice(0, 4)) - 2}-01-01`) { setDate(d.date); filled.push("data"); }
     if (d.description) { setDescription(d.description); filled.push("observação"); }
+    if (d.status) { setPaid(d.status === "pago"); filled.push(d.status === "pago" ? "situação (pago)" : "situação (a pagar)"); }
     if (filled.length) setDetailsOpen(true);
     return filled.length
       ? `Preenchi ${filled.join(", ")}. Confira antes de lançar.`
@@ -125,6 +127,9 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
 
       {/* 0. Foto primeiro: tira a foto e o sistema preenche o resto */}
       <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} label="1. Foto da nota / abastecimento" />
+
+      {/* Ou fale/digite: "paguei 150 reais de diesel no posto Ipiranga ontem" */}
+      <VoiceEntry onParsed={applyScan} />
 
       {/* 1. Valor */}
       <div>
