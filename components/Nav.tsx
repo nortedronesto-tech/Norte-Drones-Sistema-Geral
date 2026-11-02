@@ -4,48 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import {
-  ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Camera, FileBarChart, FlaskConical, Globe, HelpCircle, House,
-  Landmark, LayoutGrid, ListChecks, LogOut, PiggyBank, Settings, Sprout, Wheat, X, type LucideIcon,
-} from "lucide-react";
+import { Camera, ExternalLink, FileBarChart, House, LayoutGrid, ListChecks, LogOut, Sprout, X, type LucideIcon } from "lucide-react";
 import { signOut } from "@/app/gestao/actions";
 import type { Role } from "@/lib/access";
+import { modulesFor, type ModuleItem } from "@/lib/modules";
 
-type Item = { href: string; label: string; icon: LucideIcon; needs?: "write" | "manage" };
-type Group = { id: string; label: string; icon: LucideIcon; items: Item[] };
-
-// Menu por grupos. Cada grupo é uma área do negócio; novos grupos entram aqui.
-const GROUPS: Group[] = [
-  {
-    id: "financeiro", label: "Financeiro", icon: Landmark,
-    items: [
-      { href: "/gestao/lancamentos", label: "Lançamentos", icon: ListChecks },
-      { href: "/gestao/despesa-foto", label: "Despesa com foto", icon: Camera, needs: "write" },
-      { href: "/gestao/contas-a-pagar", label: "Contas a pagar", icon: ArrowUpFromLine },
-      { href: "/gestao/contas-a-receber", label: "Contas a receber", icon: ArrowDownToLine },
-      { href: "/gestao/conciliacao", label: "Conciliação bancária", icon: Landmark },
-      { href: "/gestao/reserva", label: "Fundo de reserva", icon: PiggyBank },
-    ],
-  },
-  {
-    id: "campo", label: "Campo", icon: Sprout,
-    items: [
-      { href: "/gestao/campo/pulverizacao", label: "Calculadora · Pulverização", icon: Calculator },
-      { href: "/gestao/campo/foliar", label: "Calculadora · Foliar", icon: FlaskConical },
-      { href: "/gestao/campo/solidos", label: "Calculadora · Sólidos", icon: Wheat },
-      { href: "/gestao/campo/passo-a-passo", label: "Passo a passo da calda", icon: BookOpen },
-      { href: "/gestao/campo/duvidas", label: "Tira-dúvidas", icon: HelpCircle },
-    ],
-  },
-  {
-    id: "relatorios", label: "Relatórios", icon: FileBarChart,
-    items: [{ href: "/gestao/relatorios", label: "Resultado mensal", icon: FileBarChart }],
-  },
-  {
-    id: "sistema", label: "Sistema", icon: Settings,
-    items: [{ href: "/gestao/cadastros", label: "Cadastros", icon: Settings, needs: "manage" }],
-  },
-];
+type Item = ModuleItem;
 
 const HOME: Item = { href: "/gestao", label: "Início", icon: House };
 const isActive = (path: string, href: string) => (href === "/gestao" ? path === "/gestao" : path === href || path.startsWith(`${href}/`));
@@ -54,9 +18,7 @@ export function Nav({ userName, email, role }: { userName: string; email: string
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const canWrite = role !== "consulta";
-  const canManage = role === "admin" || role === "socio";
-  const allowed = (i: Item) => (i.needs === "write" ? canWrite : i.needs === "manage" ? canManage : true);
-  const groups = GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length);
+  const groups = modulesFor(role);
 
   useEffect(() => { setOpen(false); }, [path]);
 
@@ -66,9 +28,16 @@ export function Nav({ userName, email, role }: { userName: string; email: string
     const cls = tone === "dark"
       ? active ? "bg-white/15 text-white" : "text-white/75 hover:bg-white/10 hover:text-white"
       : active ? "bg-brand-green/10 text-brand-green" : "text-brand-graphite hover:bg-black/[0.04]";
+    const common = `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${cls}`;
+    if (i.external) {
+      return (
+        <a key={i.href} href={i.href} target="_blank" rel="noopener noreferrer" className={common}>
+          <Icon className="size-[18px] shrink-0" aria-hidden /> {i.label} <ExternalLink className="ml-auto size-3.5 opacity-50" aria-hidden />
+        </a>
+      );
+    }
     return (
-      <Link key={i.href} href={i.href} aria-current={active ? "page" : undefined}
-        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${cls}`}>
+      <Link key={i.href} href={i.href} aria-current={active ? "page" : undefined} className={common}>
         <Icon className="size-[18px] shrink-0" aria-hidden /> {i.label}
       </Link>
     );
@@ -103,11 +72,6 @@ export function Nav({ userName, email, role }: { userName: string; email: string
         </div>
         <div className="flex-1">{menu("dark")}</div>
         <div className="mt-4 border-t border-white/15 pt-4">
-          {canManage && (
-            <Link href="/admin" className="mb-3 flex items-center gap-2 px-1 text-sm font-medium text-white/75 hover:text-white">
-              <Globe className="size-4" aria-hidden /> Admin do site
-            </Link>
-          )}
           <p className="truncate px-1 text-sm font-semibold">{userName}</p>
           <p className="truncate px-1 text-xs text-white/60">{email}</p>
           <form action={signOut}>
@@ -157,9 +121,6 @@ export function Nav({ userName, email, role }: { userName: string; email: string
               <button onClick={() => setOpen(false)} aria-label="Fechar" className="rounded-lg p-2 hover:bg-black/[0.05]"><X className="size-5" aria-hidden /></button>
             </div>
             {menu("light")}
-            {canManage && (
-              <Link href="/admin" className="mt-5 flex items-center gap-2 px-3 text-sm font-semibold text-brand-graphite/70"><Globe className="size-4" aria-hidden /> Admin do site</Link>
-            )}
             <p className="mt-5 truncate px-3 text-xs text-brand-graphite/60">{userName} · {email}</p>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { getAccountBalances, getPartners, getReservePct, sum } from "@/lib/data"
 import { formatBRL, formatDateShort, monthLabel, monthKey, todayBR } from "@/lib/format";
 import { categoryTotals, dueBuckets, monthReport, monthlySeries, shiftMonth, type Tx } from "@/lib/dashboard";
 import { HBars, MonthlyBars } from "@/components/charts";
+import { ModuleGrid } from "@/components/ModuleGrid";
 import { ACCOUNT_KIND_LABEL } from "@/lib/constants";
 import { btn, Card, CardTitle, EmptyState, Money, PageHeader, StatusBadge } from "@/components/ui";
 import type { PartnerTotals, Transaction } from "@/lib/types";
@@ -14,7 +15,8 @@ export const metadata = { title: "Início" };
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const canWrite = (await getAccess())?.canWrite ?? false;
+  const access = await getAccess();
+  const canWrite = access?.canWrite ?? false;
   const today = todayBR();
 
   const month = monthKey(today);
@@ -57,8 +59,8 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader
-        title="Visão geral"
-        subtitle="Resultados do negócio: saldos, mês, vencimentos e rateio entre os sócios."
+        title="Central Norte"
+        subtitle="Escolha uma área ou veja os resultados do negócio logo abaixo."
         action={
           canWrite ? (
             <div className="hidden md:block">
@@ -69,6 +71,8 @@ export default async function DashboardPage() {
           ) : undefined
         }
       />
+
+      {access?.role && <ModuleGrid role={access.role} />}
 
       {/* Saldo total */}
       <section className="rounded-2xl bg-brand-dark p-5 text-white shadow-sm md:p-6">

@@ -1,9 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import type { SiteContacts } from "@/lib/content-store";
 import { SITE_IMAGE_FIELDS, SiteImageKey } from "@/lib/site-image-fields";
 import { PostGenerator } from "./PostGenerator";
@@ -24,32 +21,20 @@ const EMPTY: SiteContacts = {
   areaServed: "",
 };
 
-const BASE_TABS = [
-  { key: "contatos", label: "Contatos" },
-  { key: "imagens", label: "Imagens" },
-  { key: "posts", label: "Posts" },
-  { key: "video", label: "Vídeo" },
-] as const;
+type TabKey = "contatos" | "imagens" | "posts" | "video" | "usuarios" | "integracoes" | "backup";
 
-// Só o administrador vê estas abas.
-const ADMIN_TABS = [
-  { key: "usuarios", label: "Usuários" },
-  { key: "integracoes", label: "Integrações" },
-  { key: "backup", label: "Backup" },
-] as const;
+export type { TabKey };
 
-type TabKey = (typeof BASE_TABS)[number]["key"] | (typeof ADMIN_TABS)[number]["key"];
-
+// A aba vem da rota (/gestao/marketing/[aba] e /gestao/sistema/[aba]); o menu lateral substitui a barra de abas.
 export default function AdminDashboard({
   siteImages,
   isAdmin = false,
+  tab,
 }: {
   siteImages: Record<SiteImageKey, string>;
   isAdmin?: boolean;
+  tab: TabKey;
 }) {
-  const TABS: readonly { key: TabKey; label: string }[] = isAdmin ? [...BASE_TABS, ...ADMIN_TABS] : BASE_TABS;
-  const router = useRouter();
-  const [tab, setTab] = useState<TabKey>("contatos");
   const [form, setForm] = useState<SiteContacts>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -92,62 +77,14 @@ export default function AdminDashboard({
     }
   }
 
-  async function handleLogout() {
-    await createClient().auth.signOut();
-    router.push("/login");
-    router.refresh();
-  }
-
   if (loading) {
     return <div className="p-8 text-sm text-nd-graphite/60">Carregando…</div>;
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold text-nd-green-dark">
-            Painel administrativo
-          </h1>
-          <p className="mt-1 text-sm text-nd-graphite/70">
-            Atualize os contatos, as imagens e gere posts para redes sociais.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/gestao"
-            className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-nd-graphite hover:bg-black/5"
-          >
-            Gestão
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-nd-graphite hover:bg-black/5"
-          >
-            Sair
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-6 flex gap-1 overflow-x-auto rounded-full bg-black/5 p-1 text-sm font-medium">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 transition ${
-              tab === t.key
-                ? "bg-white text-nd-green-dark shadow-sm"
-                : "text-nd-graphite/60 hover:text-nd-graphite"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
+    <div className="mx-auto max-w-3xl">
       {tab === "contatos" && (
-      <form onSubmit={handleSubmit} className="mt-8 space-y-6 rounded-2xl bg-white p-8 shadow-card ring-1 ring-black/5">
+      <form onSubmit={handleSubmit} className="mt-2 space-y-6 rounded-2xl bg-white p-6 md:p-8 shadow-card ring-1 ring-black/5">
         <Field
           label="Número de WhatsApp (com DDI e DDD, apenas números)"
           placeholder="Ex.: 5563999999999"

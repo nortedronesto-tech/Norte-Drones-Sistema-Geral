@@ -13,7 +13,7 @@ async function client(): Promise<OpenAI> {
   const apiKey = await getSecret("OPENAI_API_KEY");
   if (!apiKey) {
     throw new Error(
-      "A chave da OpenAI não está cadastrada. Cadastre em Admin → Integrações."
+      "A chave da OpenAI não está cadastrada. Cadastre em Sistema → Integrações."
     );
   }
   return new OpenAI({ apiKey });

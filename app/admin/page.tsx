@@ -1,10 +1,6 @@
-import AdminDashboard from "./AdminDashboard";
-import { getSiteImages } from "@/lib/site-images";
-import { getAccess } from "@/lib/access";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function AdminPage() {
-  const [images, access] = await Promise.all([getSiteImages(), getAccess()]);
-  return <AdminDashboard siteImages={images} isAdmin={!!access?.isAdmin} />;
+// O painel antigo agora vive dentro da Gestão (Marketing e Sistema). Mantém links e favoritos antigos funcionando.
+export default function AdminPage() {
+  redirect("/gestao/marketing/contatos");
 }
