@@ -5,6 +5,7 @@ import { getAccountBalances } from "@/lib/data";
 import { formatBRL, formatDate, todayBR } from "@/lib/format";
 import { defaultDue, OS_STATUS_LABEL, osCalda, osText, osTotal, type OsData } from "@/lib/os";
 import { recipeText, type Product } from "@/lib/calda";
+import { getSiteContent } from "@/lib/content-store";
 import { Card, CardTitle, PageHeader } from "@/components/ui";
 import { OSActions } from "@/components/OSActions";
 import { OSForm, type OsInitial } from "@/components/OSForm";
@@ -45,6 +46,8 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
   const total = osTotal(data.areaHa, data.pricePerHa);
   const calda = osCalda(data);
   const accounts = (await getAccountBalances()).filter((a) => a.active);
+  const { contacts: c } = await getSiteContent();
+  const pdfContacts = { phone: c.phone || undefined, email: c.email || undefined, instagram: c.instagramHandle || undefined, address: c.address || undefined };
   const dl = (label: string, value: string | null | undefined) => value ? <div className="flex justify-between gap-4 py-1.5 text-sm"><dt className="text-brand-graphite/60">{label}</dt><dd className="text-right font-semibold">{value}</dd></div> : null;
 
   return (
@@ -70,7 +73,7 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
             {calda && <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-black/[0.04] p-3 font-sans text-sm">{recipeText(`OS ${o.number}`, calda.input, calda.result)}</pre>}
           </Card>
         )}
-        <OSActions osId={o.id} status={o.status} accounts={accounts} due={defaultDue(todayBR())} text={osText(data)} total={formatBRL(total)}
+        <OSActions osId={o.id} status={o.status} accounts={accounts} due={defaultDue(todayBR())} text={osText(data)} total={formatBRL(total)} data={data} contacts={pdfContacts} clientPhone={client?.phone ?? null}
           canWrite={access?.canWrite ?? false} canManage={access?.canManage ?? false} />
       </div>
     </>

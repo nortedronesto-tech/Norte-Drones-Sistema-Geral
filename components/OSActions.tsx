@@ -3,16 +3,18 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Copy, Pencil, Share2, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, Download, FileText, Pencil, Share2, Trash2, XCircle } from "lucide-react";
 import { cancelOS, closeOS, deleteOS } from "@/app/gestao/os/actions";
 import type { AccountBalance } from "@/lib/types";
 import { AccountPicker } from "./AccountPicker";
-import { PrintButton } from "./PrintButton";
+import { makeOsPdf, whatsappDigits } from "@/lib/os-pdf-client";
+import type { OsData } from "@/lib/os";
+import type { PdfContacts } from "@/lib/os-pdf";
 import { btn, Card, CardTitle, FormError, inputClass, labelClass } from "./ui";
 
-export function OSActions({ osId, status, accounts, due, text, total, canWrite, canManage }: {
+export function OSActions({ osId, status, accounts, due, text, total, data, contacts, clientPhone, canWrite, canManage }: {
   osId: string; status: "aberta" | "concluida" | "cancelada"; accounts: AccountBalance[]; due: string; text: string; total: string;
-  canWrite: boolean; canManage: boolean;
+  data: OsData; contacts: PdfContacts; clientPhone: string | null; canWrite: boolean; canManage: boolean;
 }) {
   const router = useRouter();
   const [account, setAccount] = useState(accounts[0]?.id ?? "");
@@ -20,10 +22,38 @@ export function OSActions({ osId, status, accounts, due, text, total, canWrite, 
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [includePrice, setIncludePrice] = useState(true);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [waLink, setWaLink] = useState<string | null>(null);
 
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(null), 3500); };
   const copy = async () => { try { await navigator.clipboard.writeText(text); flash("Resumo copiado."); } catch { flash("Não deu para copiar."); } };
   const share = async () => { if (navigator.share) { try { await navigator.share({ text }); } catch { /* cancelado */ } } else await copy(); };
+  const download = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
+  // Compartilhar: no celular abre a folha de compartilhamento já com o PDF anexado (escolha o WhatsApp);
+  // no computador baixa o PDF e oferece abrir a conversa do cliente.
+  const sharePdf = async (downloadOnly = false) => {
+    setError(null); setWaLink(null); setPdfBusy(true);
+    try {
+      const file = await makeOsPdf(data, { includePrice, contacts });
+      const message = `Olá! Segue o relatório da OS nº ${data.number} — ${data.client}.`;
+      if (!downloadOnly && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: `OS nº ${data.number}`, text: message }); }
+        catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) { download(file); flash("PDF baixado. Anexe no WhatsApp."); } }
+      } else {
+        download(file);
+        const wa = whatsappDigits(clientPhone);
+        setWaLink(`https://wa.me/${wa ?? ""}?text=${encodeURIComponent(message)}`);
+        flash("PDF baixado. Abra o WhatsApp e anexe o arquivo.");
+      }
+    } catch { setError("Não foi possível gerar o PDF. Tente de novo."); }
+    finally { setPdfBusy(false); }
+  };
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => start(async () => {
     setError(null);
     const r = await fn();
@@ -33,10 +63,18 @@ export function OSActions({ osId, status, accounts, due, text, total, canWrite, 
 
   return (
     <div className="space-y-4 print:hidden">
+      <div className="rounded-2xl border border-brand-green/30 bg-brand-green/[0.05] p-3">
+        <p className="mb-2 flex items-center gap-2 text-sm font-bold text-brand-dark"><FileText className="size-4" aria-hidden /> PDF para o cliente</p>
+        <label className="mb-3 flex items-center gap-2 text-sm font-medium"><input type="checkbox" className="size-5" checked={includePrice} onChange={(e) => setIncludePrice(e.target.checked)} /> Incluir o valor do serviço no PDF</label>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={btn.primary} disabled={pdfBusy} onClick={() => sharePdf()}><Share2 className="size-5" aria-hidden /> {pdfBusy ? "Gerando PDF…" : "Compartilhar PDF"}</button>
+          <button type="button" className={btn.ghost} disabled={pdfBusy} onClick={() => sharePdf(true)}><Download className="size-5" aria-hidden /> Baixar PDF</button>
+        </div>
+        {waLink && <a href={waLink} target="_blank" rel="noopener noreferrer" className={`${btn.cta} mt-3`}>Abrir conversa no WhatsApp{clientPhone ? "" : " (escolha o contato)"}</a>}
+      </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={btn.primary} onClick={share}><Share2 className="size-5" aria-hidden /> Enviar resumo (WhatsApp)</button>
-        <button type="button" className={btn.ghost} onClick={copy}><Copy className="size-5" aria-hidden /> Copiar</button>
-        <PrintButton />
+        <button type="button" className={btn.ghost} onClick={share}><Share2 className="size-5" aria-hidden /> Enviar só texto</button>
+        <button type="button" className={btn.ghost} onClick={copy}><Copy className="size-5" aria-hidden /> Copiar texto</button>
         {canWrite && status === "aberta" && <Link href={`/gestao/os/${osId}?editar=1`} className={btn.ghost}><Pencil className="size-5" aria-hidden /> Editar</Link>}
       </div>
       {msg && <p role="status" className="text-sm font-semibold text-brand-green">{msg}</p>}
