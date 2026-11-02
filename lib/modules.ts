@@ -1,7 +1,7 @@
 // Fonte única do menu e da tela inicial: cada módulo (grupo) do sistema e suas páginas.
 // Para criar uma área nova (ex.: Clientes, Frota), basta acrescentar um grupo aqui.
 import {
-  ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, Truck, Database, ExternalLink, FileBarChart, FlaskConical,
+  ClipboardList, UserRound, ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, Truck, Database, ExternalLink, FileBarChart, FlaskConical,
   Globe, HelpCircle, Image as ImageIcon, KeyRound, Landmark, ListChecks, Megaphone, PiggyBank, Phone, Settings, Sprout,
   Users, Video, Wheat, Sparkles, type LucideIcon,
 } from "lucide-react";
@@ -12,6 +12,14 @@ export type ModuleItem = { href: string; label: string; icon: LucideIcon; needs?
 export type ModuleGroup = { id: string; label: string; icon: LucideIcon; blurb: string; items: ModuleItem[] };
 
 export const MODULES: ModuleGroup[] = [
+  {
+    id: "operacao", label: "Operação", icon: ClipboardList, blurb: "Ordens de serviço de aplicação e clientes, com cobrança automática.",
+    items: [
+      { href: "/gestao/os/nova", label: "Nova OS", icon: ClipboardList, needs: "write" },
+      { href: "/gestao/os", label: "Ordens de serviço", icon: ListChecks },
+      { href: "/gestao/clientes", label: "Clientes", icon: UserRound },
+    ],
+  },
   {
     id: "financeiro", label: "Financeiro", icon: Landmark, blurb: "Lançamentos, fornecedores, contas, conciliação e reserva.",
     items: [

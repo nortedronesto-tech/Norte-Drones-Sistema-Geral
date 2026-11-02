@@ -35,6 +35,17 @@ export interface Supplier {
   active: boolean;
 }
 
+export interface Client {
+  id: string;
+  name: string;
+  doc: string | null;
+  phone: string | null;
+  city: string | null;
+  price_per_ha: number | null;
+  notes: string | null;
+  active: boolean;
+}
+
 export interface Transaction {
   id: string;
   type: TxType;

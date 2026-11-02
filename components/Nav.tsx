@@ -7,12 +7,18 @@ import { usePathname } from "next/navigation";
 import { Camera, ExternalLink, FileBarChart, House, LayoutGrid, ListChecks, LogOut, Sprout, X, type LucideIcon } from "lucide-react";
 import { signOut } from "@/app/gestao/actions";
 import type { Role } from "@/lib/access";
-import { modulesFor, type ModuleItem } from "@/lib/modules";
+import { MODULES, modulesFor, type ModuleItem } from "@/lib/modules";
 
 type Item = ModuleItem;
 
 const HOME: Item = { href: "/gestao", label: "Início", icon: House };
-const isActive = (path: string, href: string) => (href === "/gestao" ? path === "/gestao" : path === href || path.startsWith(`${href}/`));
+const matches = (path: string, href: string) => (href === "/gestao" ? path === "/gestao" : path === href || path.startsWith(`${href}/`));
+// Só o item mais específico fica destacado (ex.: em /gestao/os/nova, "Nova OS" e não também "Ordens de serviço").
+const ALL_HREFS = MODULES.flatMap((g) => g.items.filter((i) => !i.external).map((i) => i.href));
+const isActive = (path: string, href: string) => {
+  if (!matches(path, href)) return false;
+  return !ALL_HREFS.some((h) => h.length > href.length && matches(path, h));
+};
 
 export function Nav({ userName, email, role }: { userName: string; email: string; role: Role }) {
   const path = usePathname();
