@@ -26,6 +26,15 @@ export interface AccountBalance extends BankAccount {
   to_pay: number;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  doc: string | null;
+  phone: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
 export interface Transaction {
   id: string;
   type: TxType;
@@ -38,7 +47,9 @@ export interface Transaction {
   paid_at: string | null;
   receipt_path: string | null;
   created_at: string;
+  supplier_id?: string | null;
   bank_accounts?: { name: string } | null;
+  suppliers?: { name: string } | null;
 }
 
 export interface ReserveEntry {

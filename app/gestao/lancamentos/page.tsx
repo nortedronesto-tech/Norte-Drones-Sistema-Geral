@@ -41,21 +41,26 @@ export default async function TransactionsPage({
   const supabase = await createClient();
   const accounts = await getAccountBalances();
 
-  let q = supabase
-    .from("transactions")
-    .select("*, bank_accounts(name)")
-    .order("date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(limite + 1);
-  if (tipo) q = q.eq("type", tipo);
-  if (status === "pago") q = q.eq("status", "pago");
-  if (status === "pendente") q = q.neq("status", "pago");
-  if (conta) q = q.eq("account_id", conta);
-  if (mes) q = q.gte("date", `${mes}-01`).lt("date", `${nextMonth(mes)}-01`);
-
-  const { data, error } = await q;
+  const run = async (cols: string) => {
+    let q = supabase
+      .from("transactions")
+      .select(cols)
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(limite + 1);
+    if (tipo) q = q.eq("type", tipo);
+    if (status === "pago") q = q.eq("status", "pago");
+    if (status === "pendente") q = q.neq("status", "pago");
+    if (conta) q = q.eq("account_id", conta);
+    if (mes) q = q.gte("date", `${mes}-01`).lt("date", `${nextMonth(mes)}-01`);
+    return q;
+  };
+  // Se a migration 0009 (fornecedores) ainda não rodou, cai para a consulta sem fornecedor.
+  let res = await run("*, bank_accounts(name), suppliers(name)");
+  if (res.error) res = await run("*, bank_accounts(name)");
+  const { data, error } = res;
   if (error) throw new Error(error.message);
-  const all = (data ?? []).map((t) => ({ ...t, amount: Number(t.amount) })) as Transaction[];
+  const all = ((data ?? []) as unknown as Transaction[]).map((t) => ({ ...t, amount: Number(t.amount) }));
   const hasMore = all.length > limite;
   const rows = all.slice(0, limite);
 

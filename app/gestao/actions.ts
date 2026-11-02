@@ -31,6 +31,7 @@ const transactionSchema = z
     status: z.enum(["pago", "a_pagar", "a_receber"]),
     date,
     receipt_path: z.string().max(300).optional(),
+    supplier_id: z.uuid().optional(),
   })
   .refine(
     (v) =>
@@ -58,6 +59,7 @@ export async function createTransaction(input: TransactionInput): Promise<Action
       status: v.status,
       date: v.date,
       receipt_path: v.receipt_path || null,
+      ...(v.supplier_id ? { supplier_id: v.supplier_id } : {}),
     })
     .select("id")
     .single();
@@ -202,5 +204,56 @@ export async function setReconciled(ids: string[], on: boolean): Promise<ActionR
   }
   if (!data?.length) return fail("Seu nível de acesso não permite conciliar.");
   revalidatePath("/gestao/conciliacao");
+  return { ok: true };
+}
+
+// ------------------------------------------------------------------ fornecedores
+const supplierSchema = z.object({
+  id: z.uuid().optional(),
+  name: z.string().trim().min(1, "Informe o nome do fornecedor").max(120),
+  doc: z.string().trim().max(30).optional(),
+  phone: z.string().trim().max(30).optional(),
+  notes: z.string().trim().max(500).optional(),
+  active: z.boolean().optional(),
+});
+
+function supplierError(e: { message: string; code?: string }): { ok: false; error: string } {
+  if (e.code === "23505") return fail("Já existe um fornecedor com esse nome.");
+  if (e.code === "42P01" || e.code === "PGRST205") return fail("Fornecedores ainda não foram ativados (falta rodar a migration 0009 no Supabase).");
+  return dbError(e);
+}
+
+/** Cadastro rápido (só o nome) durante um lançamento. */
+export async function createSupplier(name: string): Promise<ActionResult<{ id: string; name: string }>> {
+  const parsed = supplierSchema.pick({ name: true }).safeParse({ name });
+  if (!parsed.success) return fail(parsed.error.issues[0].message);
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("suppliers").insert({ name: parsed.data.name }).select("id, name").single();
+  if (error) return supplierError(error);
+  revalidatePath("/gestao", "layout");
+  return { ok: true, data: { id: data.id, name: data.name } };
+}
+
+export async function saveSupplier(input: z.input<typeof supplierSchema>): Promise<ActionResult> {
+  const parsed = supplierSchema.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0].message);
+  const { id, name, doc, phone, notes, active } = parsed.data;
+  const fields = { name, doc: doc || null, phone: phone || null, notes: notes || null, active: active ?? true };
+  const supabase = await createClient();
+  const { error } = id
+    ? await supabase.from("suppliers").update(fields).eq("id", id)
+    : await supabase.from("suppliers").insert(fields);
+  if (error) return supplierError(error);
+  revalidatePath("/gestao", "layout");
+  return { ok: true };
+}
+
+export async function deleteSupplier(id: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(id).success) return fail("Fornecedor inválido");
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("suppliers").delete().eq("id", id).select("id");
+  if (error) return supplierError(error);
+  if (!data?.length) return fail("Seu nível de acesso não permite apagar fornecedores.");
+  revalidatePath("/gestao", "layout");
   return { ok: true };
 }

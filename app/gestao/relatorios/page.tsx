@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { monthKey, monthLabel, formatBRL, todayBR } from "@/lib/format";
 import { monthReport, shiftMonth } from "@/lib/dashboard";
 import { loadMonthRows, validMonth } from "@/lib/report-data";
+import { shiftMonth as nextM } from "@/lib/dashboard";
 import { btn, Card, CardTitle, EmptyState, inputClass, PageHeader } from "@/components/ui";
 import { HBars } from "@/components/charts";
 import { PrintButton } from "@/components/PrintButton";
@@ -28,6 +29,18 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       splitMap.set(name, Math.round(((splitMap.get(name) ?? 0) + Number(s.amount)) * 100) / 100);
     }
   }
+  // gastos por fornecedor no mês (se a migration 0009 ainda não rodou, o cartão some)
+  const supRes = await supabase.from("transactions").select("amount, suppliers(name)").eq("type", "saida").eq("status", "pago")
+    .gte("paid_at", `${month}-01`).lt("paid_at", `${nextM(month, 1)}-01`).not("supplier_id", "is", null);
+  const supMap = new Map<string, number>();
+  for (const r of (supRes.error ? [] : supRes.data ?? []) as unknown as { amount: number; suppliers: { name: string } | { name: string }[] | null }[]) {
+    const sp = Array.isArray(r.suppliers) ? r.suppliers[0] : r.suppliers;
+    const n = sp?.name ?? "—";
+    supMap.set(n, Math.round(((supMap.get(n) ?? 0) + Number(r.amount)) * 100) / 100);
+  }
+  const supTotal = [...supMap.values()].reduce((a, b) => a + b, 0);
+  const bySupplier = [...supMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+    .map(([label, value]) => ({ label, value, pct: supTotal ? Math.round((value / supTotal) * 1000) / 10 : 0 }));
   const splits = [...splitMap.entries()].sort((a, b) => b[1] - a[1]);
   const months = Array.from({ length: 12 }, (_, i) => shiftMonth(current, -i));
   const byAccount = new Map<string, { in: number; out: number }>();
@@ -68,6 +81,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           <CardTitle>Despesas por categoria</CardTitle>
           {r.despesas.length ? <HBars items={r.despesas.map((c) => ({ label: c.category, value: c.amount, pct: c.pct }))} /> : <EmptyState>Sem despesas no mês.</EmptyState>}
         </Card>
+        {!supRes.error && (
+          <Card>
+            <CardTitle>Compras por fornecedor</CardTitle>
+            {bySupplier.length ? <HBars items={bySupplier} /> : <EmptyState>Nenhuma saída com fornecedor neste mês.</EmptyState>}
+          </Card>
+        )}
         <Card>
           <CardTitle>Por conta</CardTitle>
           {byAccount.size === 0 ? <EmptyState>Sem movimento no mês.</EmptyState> : (

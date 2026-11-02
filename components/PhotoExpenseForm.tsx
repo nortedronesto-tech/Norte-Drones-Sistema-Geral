@@ -10,7 +10,9 @@ import { ReceiptCapture } from "./ReceiptCapture";
 import { VoiceEntry } from "./VoiceEntry";
 import { EXPENSE_CATEGORIES } from "@/lib/constants";
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
-import type { BankAccount } from "@/lib/types";
+import type { AccountBalance, Supplier } from "@/lib/types";
+import { AccountPicker } from "./AccountPicker";
+import { SupplierPicker } from "./SupplierPicker";
 import { btn, FormError, inputClass, labelClass } from "./ui";
 
 const LS_ACCOUNT = "norte:ultimaConta";
@@ -20,10 +22,11 @@ const LS_CATEGORY = "norte:ultimaCategoria";
 const readLS = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const writeLS = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* ignora */ } };
 
-export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
+export function PhotoExpenseForm({ accounts, suppliers = [] }: { accounts: AccountBalance[]; suppliers?: Supplier[] }) {
   const [amountText, setAmountText] = useState("");
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [supplierId, setSupplierId] = useState("");
   const [description, setDescription] = useState("");
   const [paid, setPaid] = useState(true);
   const [date, setDate] = useState(todayBR());
@@ -76,6 +79,7 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
         status: paid ? "pago" : "a_pagar",
         date,
         receipt_path: receiptPath,
+        supplier_id: supplierId || undefined,
       });
       if (!res.ok) {
         // não deixa foto órfã no bucket se o lançamento falhou
@@ -151,13 +155,11 @@ export function PhotoExpenseForm({ accounts }: { accounts: BankAccount[] }) {
         </div>
       </div>
 
-      {/* 3. Conta */}
-      <div>
-        <label htmlFor="account" className={labelClass}>4. Conta que pagou</label>
-        <select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} className={inputClass} required>
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
-      </div>
+      {/* 4. Conta bancária */}
+      <AccountPicker accounts={accounts} value={accountId} onChange={setAccountId} label="4. Conta bancária que pagou" />
+
+      {/* 5. Fornecedor */}
+      <SupplierPicker suppliers={suppliers} value={supplierId} onChange={setSupplierId} />
 
       {/* 5. Detalhes opcionais */}
       <details open={detailsOpen} onToggle={(e) => setDetailsOpen(e.currentTarget.open)} className="rounded-xl border border-black/10 bg-white px-4 py-3">

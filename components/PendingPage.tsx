@@ -11,14 +11,13 @@ import type { Transaction } from "@/lib/types";
 export async function PendingPage({ kind }: { kind: "pagar" | "receber" }) {
   const status = kind === "pagar" ? "a_pagar" : "a_receber";
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("transactions")
-    .select("*, bank_accounts(name)")
-    .eq("status", status)
-    .order("date", { ascending: true })
-    .order("created_at", { ascending: true });
+  const run = (cols: string) =>
+    supabase.from("transactions").select(cols).eq("status", status).order("date", { ascending: true }).order("created_at", { ascending: true });
+  let res = await run("*, bank_accounts(name), suppliers(name)");
+  if (res.error) res = await run("*, bank_accounts(name)"); // migration 0009 ainda não rodou
+  const { data, error } = res;
   if (error) throw new Error(error.message);
-  const rows = (data ?? []).map((t) => ({ ...t, amount: Number(t.amount) })) as Transaction[];
+  const rows = ((data ?? []) as unknown as Transaction[]).map((t) => ({ ...t, amount: Number(t.amount) }));
   const today = todayBR();
   const overdue = rows.filter((t) => t.date < today);
   const rest = rows.filter((t) => t.date >= today);

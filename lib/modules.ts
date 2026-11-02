@@ -1,7 +1,7 @@
 // Fonte única do menu e da tela inicial: cada módulo (grupo) do sistema e suas páginas.
 // Para criar uma área nova (ex.: Clientes, Frota), basta acrescentar um grupo aqui.
 import {
-  ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, Database, ExternalLink, FileBarChart, FlaskConical,
+  ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, Truck, Database, ExternalLink, FileBarChart, FlaskConical,
   Globe, HelpCircle, Image as ImageIcon, KeyRound, Landmark, ListChecks, Megaphone, PiggyBank, Phone, Settings, Sprout,
   Users, Video, Wheat, Sparkles, type LucideIcon,
 } from "lucide-react";
@@ -13,12 +13,13 @@ export type ModuleGroup = { id: string; label: string; icon: LucideIcon; blurb: 
 
 export const MODULES: ModuleGroup[] = [
   {
-    id: "financeiro", label: "Financeiro", icon: Landmark, blurb: "Lançamentos, contas, conciliação e reserva.",
+    id: "financeiro", label: "Financeiro", icon: Landmark, blurb: "Lançamentos, fornecedores, contas, conciliação e reserva.",
     items: [
       { href: "/gestao/lancamentos", label: "Lançamentos", icon: ListChecks },
       { href: "/gestao/despesa-foto", label: "Despesa com foto", icon: Camera, needs: "write" },
       { href: "/gestao/contas-a-pagar", label: "Contas a pagar", icon: ArrowUpFromLine },
       { href: "/gestao/contas-a-receber", label: "Contas a receber", icon: ArrowDownToLine },
+      { href: "/gestao/fornecedores", label: "Fornecedores", icon: Truck },
       { href: "/gestao/conciliacao", label: "Conciliação bancária", icon: Landmark },
       { href: "/gestao/reserva", label: "Fundo de reserva", icon: PiggyBank },
     ],

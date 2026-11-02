@@ -1,4 +1,4 @@
-import { getAccountBalances, getPartners, getReservePct } from "@/lib/data";
+import { getAccountBalances, getPartners, getReservePct, getSuppliers } from "@/lib/data";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { TransactionForm } from "@/components/TransactionForm";
 import Link from "next/link";
@@ -10,7 +10,7 @@ export const metadata = { title: "Novo lançamento" };
 export default async function NewTransactionPage() {
   const access = await getAccess();
   if (!access?.canWrite) redirect("/gestao");
-  const [accounts, partners, reservePct] = await Promise.all([getAccountBalances(), getPartners(), getReservePct()]);
+  const [accounts, partners, reservePct, suppliers] = await Promise.all([getAccountBalances(), getPartners(), getReservePct(), getSuppliers()]);
   const active = accounts.filter((a) => a.active);
 
   return (
@@ -20,7 +20,7 @@ export default async function NewTransactionPage() {
         {active.length === 0 ? (
           <EmptyState>Cadastre ao menos uma conta em <Link href="/gestao/cadastros" className="font-bold text-brand-green underline">Cadastros</Link> antes de lançar.</EmptyState>
         ) : (
-          <TransactionForm accounts={active} partners={partners} reservePct={reservePct} />
+          <TransactionForm accounts={active} partners={partners} reservePct={reservePct} suppliers={suppliers.filter((x) => x.active)} />
         )}
       </Card>
     </>

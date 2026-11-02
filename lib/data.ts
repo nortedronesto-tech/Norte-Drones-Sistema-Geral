@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { AccountBalance, Partner } from "@/lib/types";
+import type { AccountBalance, Partner, Supplier } from "@/lib/types";
 
 /** Contas com saldo calculado (somente lançamentos pagos/recebidos entram no saldo). */
 export const getAccountBalances = cache(async (): Promise<AccountBalance[]> => {
@@ -31,3 +31,11 @@ export const getReservePct = cache(async (): Promise<number> => {
 });
 
 export const sum = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) * 100) / 100;
+
+/** Fornecedores ativos. Se a migration 0009 ainda não rodou, devolve lista vazia (o resto do sistema segue normal). */
+export const getSuppliers = cache(async (): Promise<Supplier[]> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("suppliers").select("id, name, doc, phone, notes, active").order("name");
+  if (error) return [];
+  return data as Supplier[];
+});

@@ -36,7 +36,7 @@ export function TransactionList({ rows, receiptUrls, canWrite = true }: { rows: 
                   <p className="font-semibold leading-snug">{t.description || t.category}</p>
                   <p className="mt-0.5 text-xs text-brand-graphite/60">
                     {t.description ? `${t.category} · ` : ""}
-                    {formatDate(t.date)} · {t.bank_accounts?.name}
+                    {formatDate(t.date)} · {t.bank_accounts?.name}{t.suppliers?.name ? ` · ${t.suppliers.name}` : ""}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">

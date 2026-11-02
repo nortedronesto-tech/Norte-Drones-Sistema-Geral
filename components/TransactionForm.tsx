@@ -10,17 +10,21 @@ import { removeReceipt, uploadReceipt } from "@/lib/receipt-upload";
 import type { ScanResult } from "@/lib/receipt-scan";
 import { ReceiptCapture } from "./ReceiptCapture";
 import { VoiceEntry } from "./VoiceEntry";
-import type { BankAccount, Partner, TxStatus, TxType } from "@/lib/types";
+import type { AccountBalance, Partner, Supplier, TxStatus, TxType } from "@/lib/types";
+import { AccountPicker } from "./AccountPicker";
+import { SupplierPicker } from "./SupplierPicker";
 import { btn, Card, FormError, inputClass, labelClass } from "./ui";
 
 export function TransactionForm({
   accounts,
   partners,
   reservePct,
+  suppliers = [],
 }: {
-  accounts: BankAccount[];
+  accounts: AccountBalance[];
   partners: Partner[];
   reservePct: number;
+  suppliers?: Supplier[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -29,6 +33,7 @@ export function TransactionForm({
   const [type, setType] = useState<TxType>("entrada");
   const [amountText, setAmountText] = useState("");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [supplierId, setSupplierId] = useState("");
   const [category, setCategory] = useState(categoriesFor("entrada")[0]);
   const [description, setDescription] = useState("");
   const [paid, setPaid] = useState(true);
@@ -84,7 +89,7 @@ export function TransactionForm({
       } catch (err) {
         return setError(err instanceof Error ? err.message : "Não foi possível enviar a foto.");
       }
-      const res = await createTransaction({ type, amount, account_id: accountId, category, description, status, date, receipt_path: receiptPath });
+      const res = await createTransaction({ type, amount, account_id: accountId, category, description, status, date, receipt_path: receiptPath, supplier_id: type === "saida" && supplierId ? supplierId : undefined });
       if (!res.ok) {
         if (receiptPath) await removeReceipt(receiptPath); // não deixa foto órfã
         return setError(res.error);
@@ -117,19 +122,16 @@ export function TransactionForm({
           onChange={(e) => setAmountText(e.target.value)} className={`${inputClass} num text-2xl font-extrabold`} required />
       </div>
 
+      <AccountPicker accounts={accounts} value={accountId} onChange={setAccountId} label={type === "entrada" ? "Conta bancária (onde entrou)" : "Conta bancária (de onde saiu)"} />
+
       <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label htmlFor="account" className={labelClass}>Conta</label>
-          <select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} className={inputClass} required>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
         <div>
           <label htmlFor="category" className={labelClass}>Categoria</label>
           <select id="category" value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass}>
             {categoriesFor(type).map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
+        {type === "saida" && suppliers !== undefined && <SupplierPicker suppliers={suppliers} value={supplierId} onChange={setSupplierId} />}
       </div>
 
       <div>
