@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccess } from "@/lib/access";
 import { PageHeader } from "@/components/ui";
-import { CampoGuide, SECOES, type SavedRecipe, type Secao } from "@/components/CampoGuide";
+import { CampoGuide, type SavedRecipe } from "@/components/CampoGuide";
+import { SECOES, type Secao } from "@/lib/campo-content";
 
 export const metadata = { title: "Campo" };
 

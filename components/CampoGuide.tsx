@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Copy, Plus, Search, Share2, Trash2, TriangleAlert } from "lucide-react";
 import { calcCalda, calcSolidos, FORMULATIONS, recipeText, solidosText, type DoseUnit, type Formulation, type Product } from "@/lib/calda";
-import { DISCLAIMER, EMERGENCY, FAQ, FAQ_CATEGORIES, SOURCES, STEPS } from "@/lib/campo-content";
+import { DISCLAIMER, EMERGENCY, FAQ, FAQ_CATEGORIES, SECOES, SOURCES, STEPS, type Secao } from "@/lib/campo-content";
 import { saveRecipe, deleteRecipe } from "@/app/gestao/campo/actions";
 import { btn, Card, CardTitle, EmptyState, FormError, inputClass, labelClass } from "@/components/ui";
 
@@ -36,16 +36,6 @@ const EXAMPLE = {
     { name: "Adjuvante (exemplo)", dose: "50", unit: "mL/ha", form: "adjuvante" },
   ] as Row[],
 };
-
-export type Secao = "pulverizacao" | "foliar" | "solidos" | "passo-a-passo" | "duvidas";
-
-export const SECOES: { id: Secao; label: string }[] = [
-  { id: "pulverizacao", label: "Pulverização" },
-  { id: "foliar", label: "Foliar" },
-  { id: "solidos", label: "Sólidos" },
-  { id: "passo-a-passo", label: "Passo a passo" },
-  { id: "duvidas", label: "Tira-dúvidas" },
-];
 
 const TIPO_INFO: Record<"pulverizacao" | "foliar", { form: Formulation; dica: string }> = {
   pulverizacao: { form: "emulsao", dica: "Defensivos (fungicida, inseticida, herbicida): a dose e a mistura são as do receituário. Faça sempre o teste de jarra." },
