@@ -29,7 +29,7 @@ const LS_OP = "norte:os:operador";
 const readLS = (k: string) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } };
 const writeLS = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* ignora */ } };
 
-export function OSForm({ clients: initialClients, initial, defaultClientId }: { clients: OsClient[]; initial?: OsInitial; defaultClientId?: string }) {
+export function OSForm({ clients: initialClients, initial, defaultClientId, hideMoney = false }: { clients: OsClient[]; initial?: OsInitial; defaultClientId?: string; hideMoney?: boolean }) {
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
   const [clientId, setClientId] = useState(initial?.client_id ?? defaultClientId ?? "");
@@ -98,7 +98,7 @@ export function OSForm({ clients: initialClients, initial, defaultClientId }: { 
         <div>
           <label htmlFor="client" className={labelClass}>Cliente</label>
           <div className="flex gap-2">
-            <select id="client" className={inputClass} value={clientId} onChange={(e) => setClientId(e.target.value)}>
+            <select id="client" className={inputClass} value={clientId} disabled={hideMoney && !!initial} onChange={(e) => setClientId(e.target.value)}>
               <option value="">— escolha o cliente —</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}{c.price_per_ha != null ? ` · ${formatBRL(c.price_per_ha)}/ha` : ""}</option>)}
             </select>
@@ -119,6 +119,9 @@ export function OSForm({ clients: initialClients, initial, defaultClientId }: { 
       </section>
 
       <section className="rounded-xl border border-brand-green/30 bg-brand-green/[0.04] p-3">
+        {hideMoney ? (
+          <div><label htmlFor="area" className={labelClass}>Área aplicada (ha)</label><input id="area" inputMode="decimal" className={`${inputClass} num text-xl font-extrabold`} value={area} onChange={(e) => setArea(e.target.value)} placeholder="0" /></div>
+        ) : (<>
         <div className="grid grid-cols-2 gap-3">
           <div><label htmlFor="area" className={labelClass}>Área aplicada (ha)</label><input id="area" inputMode="decimal" className={`${inputClass} num text-xl font-extrabold`} value={area} onChange={(e) => setArea(e.target.value)} placeholder="0" /></div>
           <div><label htmlFor="price" className={labelClass}>Valor por ha (R$)</label><input id="price" inputMode="decimal" className={`${inputClass} num text-xl font-extrabold`} value={price} onChange={(e) => setPrice(e.target.value)} placeholder={txt(suggested)} /></div>
@@ -127,6 +130,7 @@ export function OSForm({ clients: initialClients, initial, defaultClientId }: { 
           {price.trim() ? "Valor digitado nesta OS." : client?.price_per_ha != null ? `Usando o valor do cliente (${formatBRL(client.price_per_ha)}/ha).` : `Usando o valor padrão (${formatBRL(DEFAULT_PRICE_PER_HA)}/ha).`}
           {" "}Total: <strong className="num text-lg">{formatBRL(total)}</strong>
         </p>
+        </>)}
       </section>
 
       <section className="grid gap-3 md:grid-cols-2">

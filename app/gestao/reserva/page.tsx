@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getAccess } from "@/lib/access";
+import { getAccess, requireFinanceAccess } from "@/lib/access";
 import { getReservePct, sum } from "@/lib/data";
 import { formatBRL, formatDate } from "@/lib/format";
 import { Card, CardTitle, EmptyState, PageHeader } from "@/components/ui";
@@ -12,6 +12,7 @@ export const metadata = { title: "Fundo de reserva" };
 const KIND_LABEL = { retencao: "Retenção", retirada: "Retirada", ajuste: "Ajuste" } as const;
 
 export default async function ReservePage() {
+  await requireFinanceAccess();
   const supabase = await createClient();
   const canWrite = (await getAccess())?.canWrite ?? false;
   const [reservePct, entriesRes, totalsRes] = await Promise.all([

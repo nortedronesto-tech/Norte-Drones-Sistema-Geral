@@ -23,7 +23,8 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
   const products = (Array.isArray(o.products) ? o.products : []) as Product[];
   const n = (v: unknown) => (v == null ? null : Number(v));
 
-  if (editar && o.status === "aberta" && access?.canWrite) {
+  const money = access?.canWrite ?? false; // operador não vê valores
+  if (editar && o.status === "aberta" && access?.canOperate) {
     const { data: clients } = await supabase.from("clients").select("id, name, price_per_ha").eq("active", true).order("name");
     const initial: OsInitial = {
       id: o.id, client_id: o.client_id, farm: o.farm, service_date: o.service_date, area_ha: Number(o.area_ha), price_per_ha: Number(o.price_per_ha),
@@ -33,20 +34,20 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
     return (
       <>
         <PageHeader title={`Editar OS ${o.number}`} subtitle={client?.name} />
-        <Card className="mx-auto max-w-2xl"><OSForm clients={(clients ?? []).map((c) => ({ ...c, price_per_ha: n(c.price_per_ha) }))} initial={initial} /></Card>
+        <Card className="mx-auto max-w-2xl"><OSForm clients={(clients ?? []).map((c) => ({ ...c, price_per_ha: n(c.price_per_ha) }))} initial={initial} hideMoney={!money} /></Card>
       </>
     );
   }
 
   const data: OsData = {
-    number: o.number, client: client?.name ?? "—", farm: o.farm, date: o.service_date, areaHa: Number(o.area_ha), pricePerHa: Number(o.price_per_ha),
+    number: o.number, client: client?.name ?? "—", farm: o.farm, date: o.service_date, areaHa: Number(o.area_ha), pricePerHa: money ? Number(o.price_per_ha) : 0,
     crop: o.crop, target: o.target, drone: o.drone, operator: o.operator_name, rateLHa: n(o.rate_l_ha), tankL: n(o.tank_l), products,
     windKmh: n(o.wind_kmh), tempC: n(o.temp_c), humidityPct: n(o.humidity_pct), notes: o.notes,
     clientOkAt: (o.client_ok_at as string | null | undefined) ?? null,
   };
   const total = osTotal(data.areaHa, data.pricePerHa);
   const calda = osCalda(data);
-  const accounts = (await getAccountBalances()).filter((a) => a.active);
+  const accounts = money ? (await getAccountBalances()).filter((a) => a.active) : [];
   const { contacts: c } = await getSiteContent();
   const pdfContacts = { phone: c.phone || undefined, email: c.email || undefined, instagram: c.instagramHandle || undefined, address: c.address || undefined };
   const dl = (label: string, value: string | null | undefined) => value ? <div className="flex justify-between gap-4 py-1.5 text-sm"><dt className="text-brand-graphite/60">{label}</dt><dd className="text-right font-semibold">{value}</dd></div> : null;
@@ -61,7 +62,7 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
           <dl className="divide-y divide-black/[0.06]">
             {dl("Cliente", data.client)}{dl("Fazenda / talhão", data.farm)}{dl("Data", formatDate(o.service_date))}
             {dl("Área aplicada", `${data.areaHa.toLocaleString("pt-BR")} ha`)}
-            {dl("Valor", `${data.areaHa.toLocaleString("pt-BR")} ha × ${formatBRL(data.pricePerHa)} = ${formatBRL(total)}`)}
+            {money && dl("Valor", `${data.areaHa.toLocaleString("pt-BR")} ha × ${formatBRL(data.pricePerHa)} = ${formatBRL(total)}`)}
             {dl("Cultura", data.crop)}{dl("Alvo / praga", data.target)}{dl("Drone", data.drone)}{dl("Operador", data.operator)}
             {dl("Clima", [data.windKmh != null && `vento ${data.windKmh} km/h`, data.tempC != null && `${data.tempC} °C`, data.humidityPct != null && `umidade ${data.humidityPct}%`].filter(Boolean).join(" · "))}
             {dl("Observações", data.notes)}{dl("Autorização do cliente", data.clientOkAt ? `OK em ${formatDate(data.clientOkAt)}` : "ainda sem OK")}
@@ -74,8 +75,8 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
             {calda && <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-black/[0.04] p-3 font-sans text-sm">{recipeText(`OS ${o.number}`, calda.input, calda.result)}</pre>}
           </Card>
         )}
-        <OSActions osId={o.id} status={o.status} accounts={accounts} due={defaultDue(todayBR())} text={osText(data)} total={formatBRL(total)} data={data} contacts={pdfContacts} clientPhone={client?.phone ?? null} clientOkNote={(o.client_ok_note as string | null | undefined) ?? null}
-          canWrite={access?.canWrite ?? false} canManage={access?.canManage ?? false} />
+        <OSActions osId={o.id} status={o.status} accounts={accounts} due={defaultDue(todayBR())} text={osText(data, money)} total={formatBRL(total)} showMoney={money} data={data} contacts={pdfContacts} clientPhone={client?.phone ?? null} clientOkNote={(o.client_ok_note as string | null | undefined) ?? null}
+          canWrite={access?.canWrite ?? false} canOperate={access?.canOperate ?? false} canManage={access?.canManage ?? false} />
       </div>
     </>
   );

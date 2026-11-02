@@ -8,15 +8,15 @@ import {
 import type { Role } from "@/lib/access";
 
 export type Need = "write" | "manage" | "admin";
-export type ModuleItem = { href: string; label: string; icon: LucideIcon; needs?: Need; external?: boolean };
+export type ModuleItem = { href: string; label: string; icon: LucideIcon; needs?: Need; external?: boolean; operador?: boolean };
 export type ModuleGroup = { id: string; label: string; icon: LucideIcon; blurb: string; items: ModuleItem[] };
 
 export const MODULES: ModuleGroup[] = [
   {
     id: "operacao", label: "Operação", icon: ClipboardList, blurb: "Ordens de serviço de aplicação e clientes, com cobrança automática.",
     items: [
-      { href: "/gestao/os/nova", label: "Nova OS", icon: ClipboardList, needs: "write" },
-      { href: "/gestao/os", label: "Ordens de serviço", icon: ListChecks },
+      { href: "/gestao/os/nova", label: "Nova OS", icon: ClipboardList, needs: "write", operador: true },
+      { href: "/gestao/os", label: "Ordens de serviço", icon: ListChecks, operador: true },
       { href: "/gestao/clientes", label: "Clientes", icon: UserRound },
     ],
   },
@@ -35,12 +35,12 @@ export const MODULES: ModuleGroup[] = [
   {
     id: "campo", label: "Campo", icon: Sprout, blurb: "Calculadoras de calda e sólidos, pragas de pastagem, passo a passo e dúvidas.",
     items: [
-      { href: "/gestao/campo/pulverizacao", label: "Calculadora · Pulverização", icon: Calculator },
-      { href: "/gestao/campo/foliar", label: "Calculadora · Foliar", icon: FlaskConical },
-      { href: "/gestao/campo/solidos", label: "Calculadora · Sólidos", icon: Wheat },
-      { href: "/gestao/campo/pragas", label: "Pragas de pastagem", icon: Bug },
-      { href: "/gestao/campo/passo-a-passo", label: "Passo a passo da calda", icon: BookOpen },
-      { href: "/gestao/campo/duvidas", label: "Tira-dúvidas", icon: HelpCircle },
+      { href: "/gestao/campo/pulverizacao", label: "Calculadora · Pulverização", icon: Calculator, operador: true },
+      { href: "/gestao/campo/foliar", label: "Calculadora · Foliar", icon: FlaskConical, operador: true },
+      { href: "/gestao/campo/solidos", label: "Calculadora · Sólidos", icon: Wheat, operador: true },
+      { href: "/gestao/campo/pragas", label: "Pragas de pastagem", icon: Bug, operador: true },
+      { href: "/gestao/campo/passo-a-passo", label: "Passo a passo da calda", icon: BookOpen, operador: true },
+      { href: "/gestao/campo/duvidas", label: "Tira-dúvidas", icon: HelpCircle, operador: true },
     ],
   },
   {
@@ -72,6 +72,7 @@ export const MODULES: ModuleGroup[] = [
 ];
 
 export function allowed(item: ModuleItem, role: Role): boolean {
+  if (role === "operador") return item.operador === true; // operador: só Operação (OS) e Campo
   if (item.needs === "write") return role !== "consulta";
   if (item.needs === "manage") return role === "admin" || role === "socio";
   if (item.needs === "admin") return role === "admin";

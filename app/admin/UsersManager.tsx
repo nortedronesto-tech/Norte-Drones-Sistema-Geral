@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-type Role = "admin" | "socio" | "financeiro" | "consulta";
+type Role = "admin" | "socio" | "financeiro" | "operador" | "consulta";
 type UserRow = {
   user_id: string;
   email: string;
@@ -17,12 +17,14 @@ const ROLE_LABEL: Record<Role, string> = {
   admin: "Administrador",
   socio: "Sócio",
   financeiro: "Financeiro",
+  operador: "Operador",
   consulta: "Consulta",
 };
 const ROLE_HELP: Record<Role, string> = {
   admin: "Tudo, inclusive cadastrar usuários e níveis de acesso.",
   socio: "Gestão completa e admin do site, sem cadastrar usuários.",
   financeiro: "Lança e consulta o financeiro. Sem cadastros e sem admin do site.",
+  operador: "Quem voa e aplica: abre ordens de serviço e usa o Campo. Não vê financeiro nem valores.",
   consulta: "Só visualiza o financeiro. Não altera nada.",
 };
 const ROLES = Object.keys(ROLE_LABEL) as Role[];

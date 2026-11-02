@@ -1,5 +1,6 @@
 import { Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { requireFinanceAccess } from "@/lib/access";
 import { monthKey, monthLabel, formatBRL, todayBR } from "@/lib/format";
 import { monthReport, shiftMonth } from "@/lib/dashboard";
 import { loadMonthRows, validMonth } from "@/lib/report-data";
@@ -11,6 +12,7 @@ import { PrintButton } from "@/components/PrintButton";
 export const metadata = { title: "Relatórios" };
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  await requireFinanceAccess();
   const sp = await searchParams;
   const current = monthKey(todayBR());
   const month = validMonth(sp.mes) ?? current;

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getAccess } from "@/lib/access";
+import { getAccess, requireFinanceAccess } from "@/lib/access";
 import { sum } from "@/lib/data";
 import { formatBRL } from "@/lib/format";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -9,6 +9,7 @@ import type { Supplier } from "@/lib/types";
 export const metadata = { title: "Fornecedores" };
 
 export default async function SuppliersPage() {
+  await requireFinanceAccess();
   const access = await getAccess();
   const supabase = await createClient();
   const sup = await supabase.from("suppliers").select("id, name, doc, phone, notes, active").order("name");

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccountBalances } from "@/lib/data";
 import { monthKey, monthLabel, todayBR } from "@/lib/format";
 import { btn, Card, EmptyState, inputClass, PageHeader } from "@/components/ui";
-import { getAccess } from "@/lib/access";
+import { getAccess, requireFinanceAccess } from "@/lib/access";
 import { TransactionList } from "@/components/TransactionList";
 import type { Transaction } from "@/lib/types";
 
@@ -31,6 +31,7 @@ export default async function TransactionsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  await requireFinanceAccess();
   const sp = await searchParams;
   const tipo = sp.tipo === "entrada" || sp.tipo === "saida" ? sp.tipo : "";
   const status = ["pago", "pendente"].includes(sp.status ?? "") ? sp.status! : "";

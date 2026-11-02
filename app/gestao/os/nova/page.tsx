@@ -9,7 +9,7 @@ export const metadata = { title: "Nova OS" };
 
 export default async function NewOsPage({ searchParams }: { searchParams: Promise<{ cliente?: string }> }) {
   const access = await getAccess();
-  if (!access?.canWrite) redirect("/gestao/os");
+  if (!access?.canOperate) redirect("/gestao/os");
   const { cliente } = await searchParams;
   const supabase = await createClient();
   const { data, error } = await supabase.from("clients").select("id, name, price_per_ha").eq("active", true).order("name");
@@ -22,7 +22,7 @@ export default async function NewOsPage({ searchParams }: { searchParams: Promis
         ) : (
           <>
             {(data ?? []).length === 0 && <p className="mb-3 text-sm text-brand-graphite/70">Nenhum cliente ainda: toque no <strong>+</strong> ao lado de “Cliente” para cadastrar, ou veja <Link href="/gestao/clientes" className="font-bold text-brand-green underline">Clientes</Link>.</p>}
-            <OSForm clients={(data ?? []).map((c) => ({ ...c, price_per_ha: c.price_per_ha == null ? null : Number(c.price_per_ha) }))} defaultClientId={cliente} />
+            <OSForm clients={(data ?? []).map((c) => ({ ...c, price_per_ha: c.price_per_ha == null ? null : Number(c.price_per_ha) }))} defaultClientId={cliente} hideMoney={!access.canWrite} />
           </>
         )}
       </Card>

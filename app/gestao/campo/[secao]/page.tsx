@@ -34,7 +34,7 @@ export default async function CampoPage({ params }: { params: Promise<{ secao: s
   return (
     <>
       <PageHeader title={`Campo · ${atual.label}`} subtitle="Conta por tanque ou carga, passo a passo e tira-dúvidas." />
-      <CampoGuide secao={secao as Secao} recipes={recipes} recipesEnabled={enabled} canWrite={access?.canWrite ?? false} canManage={access?.canManage ?? false} />
+      <CampoGuide secao={secao as Secao} recipes={recipes} recipesEnabled={enabled} canWrite={access?.canOperate ?? false} canManage={access?.canManage ?? false} />
     </>
   );
 }

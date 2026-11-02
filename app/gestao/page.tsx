@@ -7,6 +7,7 @@ import { formatBRL, formatDateShort, monthLabel, monthKey, todayBR } from "@/lib
 import { categoryTotals, dueBuckets, monthReport, monthlySeries, shiftMonth, type Tx } from "@/lib/dashboard";
 import { HBars, MonthlyBars } from "@/components/charts";
 import { ModuleGrid } from "@/components/ModuleGrid";
+import { OperatorHome } from "@/components/OperatorHome";
 import { ACCOUNT_KIND_LABEL } from "@/lib/constants";
 import { btn, Card, CardTitle, EmptyState, Money, PageHeader, StatusBadge } from "@/components/ui";
 import type { PartnerTotals, Transaction } from "@/lib/types";
@@ -16,6 +17,7 @@ export const metadata = { title: "Início" };
 export default async function DashboardPage() {
   const supabase = await createClient();
   const access = await getAccess();
+  if (access?.role === "operador") return <OperatorHome name={access.name} />;
   const canWrite = access?.canWrite ?? false;
   const today = todayBR();
 

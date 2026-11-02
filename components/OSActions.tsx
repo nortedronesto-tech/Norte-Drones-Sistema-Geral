@@ -13,9 +13,9 @@ import type { OsData } from "@/lib/os";
 import type { PdfContacts } from "@/lib/os-pdf";
 import { btn, Card, CardTitle, FormError, inputClass, labelClass } from "./ui";
 
-export function OSActions({ osId, status, accounts, due, text, total, data, contacts, clientPhone, clientOkNote, canWrite, canManage }: {
+export function OSActions({ osId, status, accounts, due, text, total, data, contacts, clientPhone, clientOkNote, showMoney = true, canOperate, canWrite, canManage }: {
   osId: string; status: "aberta" | "concluida" | "cancelada"; accounts: AccountBalance[]; due: string; text: string; total: string;
-  data: OsData; contacts: PdfContacts; clientPhone: string | null; clientOkNote: string | null; canWrite: boolean; canManage: boolean;
+  data: OsData; contacts: PdfContacts; clientPhone: string | null; clientOkNote: string | null; showMoney?: boolean; canOperate: boolean; canWrite: boolean; canManage: boolean;
 }) {
   const router = useRouter();
   const [account, setAccount] = useState(accounts[0]?.id ?? "");
@@ -23,7 +23,7 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const [includePrice, setIncludePrice] = useState(true);
+  const [includePrice, setIncludePrice] = useState(showMoney);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [waLink, setWaLink] = useState<string | null>(null);
   const [okDate, setOkDate] = useState(todayBR());
@@ -68,7 +68,7 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
     <div className="space-y-4 print:hidden">
       <div className="rounded-2xl border border-brand-green/30 bg-brand-green/[0.05] p-3">
         <p className="mb-2 flex items-center gap-2 text-sm font-bold text-brand-dark"><FileText className="size-4" aria-hidden /> PDF para o cliente</p>
-        <label className="mb-3 flex items-center gap-2 text-sm font-medium"><input type="checkbox" className="size-5" checked={includePrice} onChange={(e) => setIncludePrice(e.target.checked)} /> Incluir o valor do serviço no PDF</label>
+        {showMoney && <label className="mb-3 flex items-center gap-2 text-sm font-medium"><input type="checkbox" className="size-5" checked={includePrice} onChange={(e) => setIncludePrice(e.target.checked)} /> Incluir o valor do serviço no PDF</label>}
         <div className="flex flex-wrap gap-2">
           <button type="button" className={btn.primary} disabled={pdfBusy} onClick={() => sharePdf()}><Share2 className="size-5" aria-hidden /> {pdfBusy ? "Gerando PDF…" : "Compartilhar PDF"}</button>
           <button type="button" className={btn.ghost} disabled={pdfBusy} onClick={() => sharePdf(true)}><Download className="size-5" aria-hidden /> Baixar PDF</button>
@@ -78,7 +78,7 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
       <div className="flex flex-wrap gap-2">
         <button type="button" className={btn.ghost} onClick={share}><Share2 className="size-5" aria-hidden /> Enviar só texto</button>
         <button type="button" className={btn.ghost} onClick={copy}><Copy className="size-5" aria-hidden /> Copiar texto</button>
-        {canWrite && status === "aberta" && <Link href={`/gestao/os/${osId}?editar=1`} className={btn.ghost}><Pencil className="size-5" aria-hidden /> Editar</Link>}
+        {canOperate && status === "aberta" && <Link href={`/gestao/os/${osId}?editar=1`} className={btn.ghost}><Pencil className="size-5" aria-hidden /> Editar</Link>}
       </div>
       {msg && <p role="status" className="text-sm font-semibold text-brand-green">{msg}</p>}
 
@@ -88,12 +88,12 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
           <div className="space-y-2">
             <p className="flex items-center gap-2 font-semibold text-brand-green"><CheckCircle2 className="size-5" aria-hidden /> Autorizada em {formatDate(data.clientOkAt)}</p>
             {clientOkNote && <p className="text-sm text-brand-graphite/80">{clientOkNote}</p>}
-            {canWrite && <button type="button" className="text-sm font-bold text-danger underline" disabled={pending} onClick={() => run(() => setClientOk(osId, false, okDate))}>Desfazer registro</button>}
+            {canOperate && <button type="button" className="text-sm font-bold text-danger underline" disabled={pending} onClick={() => run(() => setClientOk(osId, false, okDate))}>Desfazer registro</button>}
           </div>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-brand-graphite/80">Mande o PDF e peça um <strong>OK</strong> no WhatsApp. Quando ele responder, registre aqui.</p>
-            {canWrite ? (
+            {canOperate ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div><label htmlFor="okdate" className={labelClass}>Data da resposta</label><input id="okdate" type="date" className={inputClass} value={okDate} onChange={(e) => setOkDate(e.target.value)} /></div>

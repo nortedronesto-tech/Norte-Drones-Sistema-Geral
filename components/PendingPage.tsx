@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getAccess } from "@/lib/access";
+import { getAccess, requireFinanceAccess } from "@/lib/access";
 import { formatBRL, todayBR } from "@/lib/format";
 import { sum } from "@/lib/data";
 import { btn, Card, EmptyState, PageHeader } from "@/components/ui";
@@ -9,6 +9,7 @@ import type { Transaction } from "@/lib/types";
 
 /** Contas a pagar / a receber: pendências por vencimento, atrasadas em destaque, com "marcar como pago". */
 export async function PendingPage({ kind }: { kind: "pagar" | "receber" }) {
+  await requireFinanceAccess();
   const status = kind === "pagar" ? "a_pagar" : "a_receber";
   const supabase = await createClient();
   const run = (cols: string) =>

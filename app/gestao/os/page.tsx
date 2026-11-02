@@ -15,6 +15,7 @@ export default async function OsListPage({ searchParams }: { searchParams: Promi
   const { status } = await searchParams;
   const filtro = (["aberta", "concluida", "cancelada"] as const).find((s) => s === status) ?? "";
   const access = await getAccess();
+  const money = access?.canWrite ?? false; // operador não vê valores
   const supabase = await createClient();
   let q = supabase.from("service_orders").select("id, number, service_date, farm, area_ha, total_amount, status, clients(name)").order("service_date", { ascending: false }).order("number", { ascending: false }).limit(200);
   if (filtro) q = q.eq("status", filtro);
@@ -29,18 +30,18 @@ export default async function OsListPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="Ordens de serviço" subtitle="Cada aplicação feita, com cobrança automática ao concluir."
-        action={access?.canWrite ? <Link href="/gestao/os/nova" className={`${btn.primary} hidden md:inline-flex`}><Plus className="size-5" aria-hidden /> Nova OS</Link> : undefined} />
-      {access?.canWrite && <Link href="/gestao/os/nova" className={`${btn.cta} mb-4 w-full md:hidden`}><Plus className="size-5" aria-hidden /> Nova OS</Link>}
+        action={access?.canOperate ? <Link href="/gestao/os/nova" className={`${btn.primary} hidden md:inline-flex`}><Plus className="size-5" aria-hidden /> Nova OS</Link> : undefined} />
+      {access?.canOperate && <Link href="/gestao/os/nova" className={`${btn.cta} mb-4 w-full md:hidden`}><Plus className="size-5" aria-hidden /> Nova OS</Link>}
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         {[["", "Todas"], ["aberta", "Abertas"], ["concluida", "Concluídas"], ["cancelada", "Canceladas"]].map(([v, l]) => (
           <Link key={v || "todas"} href={v ? `/gestao/os?status=${v}` : "/gestao/os"} className={`rounded-full border px-3.5 py-2 text-sm font-bold ${filtro === v ? "border-brand-green bg-brand-green text-white" : "border-black/15 bg-white"}`}>{l}</Link>
         ))}
       </div>
-      {abertas.length > 0 && !filtro && <p className="mb-3 text-sm text-brand-graphite/70">{abertas.length} OS aberta(s), {formatBRL(sum(abertas.map((r) => Number(r.total_amount))))} ainda sem cobrança.</p>}
+      {money && abertas.length > 0 && !filtro && <p className="mb-3 text-sm text-brand-graphite/70">{abertas.length} OS aberta(s), {formatBRL(sum(abertas.map((r) => Number(r.total_amount))))} ainda sem cobrança.</p>}
 
       <Card>
-        {rows.length === 0 ? <EmptyState>Nenhuma OS {filtro ? "com esse filtro" : "ainda"}. {access?.canWrite && "Abra a primeira em “Nova OS”."}</EmptyState> : (
+        {rows.length === 0 ? <EmptyState>Nenhuma OS {filtro ? "com esse filtro" : "ainda"}. {access?.canOperate && "Abra a primeira em “Nova OS”."}</EmptyState> : (
           <ul className="divide-y divide-black/[0.06]">
             {rows.map((r) => (
               <li key={r.id}>
@@ -50,7 +51,7 @@ export default async function OsListPage({ searchParams }: { searchParams: Promi
                     <p className="text-xs text-brand-graphite/60">{formatDate(r.service_date)} · {Number(r.area_ha).toLocaleString("pt-BR")} ha{r.farm ? ` · ${r.farm}` : ""}</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="num font-bold">{formatBRL(Number(r.total_amount))}</p>
+                    {money && <p className="num font-bold">{formatBRL(Number(r.total_amount))}</p>}
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${TONE[r.status]}`}>{OS_STATUS_LABEL[r.status]}</span>
                   </div>
                 </Link>

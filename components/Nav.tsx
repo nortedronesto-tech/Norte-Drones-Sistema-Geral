@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Camera, ExternalLink, FileBarChart, House, LayoutGrid, ListChecks, LogOut, Sprout, X, type LucideIcon } from "lucide-react";
+import { Camera, ClipboardList, ExternalLink, FileBarChart, House, LayoutGrid, ListChecks, LogOut, Sprout, X, type LucideIcon } from "lucide-react";
 import { signOut } from "@/app/gestao/actions";
 import type { Role } from "@/lib/access";
 import { MODULES, modulesFor, type ModuleItem } from "@/lib/modules";
@@ -24,6 +24,7 @@ export function Nav({ userName, email, role }: { userName: string; email: string
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const canWrite = role !== "consulta";
+  const isOp = role === "operador";
   const groups = modulesFor(role);
 
   useEffect(() => { setOpen(false); }, [path]);
@@ -103,11 +104,11 @@ export function Nav({ userName, email, role }: { userName: string; email: string
 
       <nav aria-label="Atalhos" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-black/10 bg-white pb-[env(safe-area-inset-bottom)] md:hidden print:hidden">
         <Tab href="/gestao" label="Início" icon={House} path={path} />
-        <Tab href="/gestao/lancamentos" label="Lançar" icon={ListChecks} path={path} />
+        {isOp ? <Tab href="/gestao/os" label="OS" icon={ListChecks} path={path} match="/gestao/os" /> : <Tab href="/gestao/lancamentos" label="Lançar" icon={ListChecks} path={path} />}
         {canWrite ? (
-          <Link href="/gestao/despesa-foto" aria-label="Despesa com foto" className="relative flex justify-center">
+          <Link href={isOp ? "/gestao/os/nova" : "/gestao/despesa-foto"} aria-label={isOp ? "Nova OS" : "Despesa com foto"} className="relative flex justify-center">
             <span className="absolute -top-6 grid size-14 place-items-center rounded-full bg-brand-lime text-brand-dark shadow-lg ring-4 ring-brand-mist">
-              <Camera className="size-6" aria-hidden />
+              {isOp ? <ClipboardList className="size-6" aria-hidden /> : <Camera className="size-6" aria-hidden />}
             </span>
           </Link>
         ) : <Tab href="/gestao/relatorios" label="Relatórios" icon={FileBarChart} path={path} />}

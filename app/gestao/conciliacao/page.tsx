@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getAccess } from "@/lib/access";
+import { getAccess, requireFinanceAccess } from "@/lib/access";
 import { getAccountBalances, sum } from "@/lib/data";
 import { formatBRL, parseMoney } from "@/lib/format";
 import { btn, Card, EmptyState, inputClass, labelClass, PageHeader } from "@/components/ui";
@@ -8,6 +8,7 @@ import { ReconcileList, type ReconRow } from "@/components/ReconcileList";
 export const metadata = { title: "Conciliação bancária" };
 
 export default async function ReconciliationPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  await requireFinanceAccess();
   const sp = await searchParams;
   const accounts = (await getAccountBalances()).filter((a) => a.active);
   const conta = accounts.find((a) => a.id === sp.conta) ?? accounts[0];

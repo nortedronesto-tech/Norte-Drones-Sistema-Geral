@@ -1,15 +1,17 @@
 import "server-only";
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type Role = "admin" | "socio" | "financeiro" | "consulta";
+export type Role = "admin" | "socio" | "financeiro" | "operador" | "consulta";
 
-export const ROLES: Role[] = ["admin", "socio", "financeiro", "consulta"];
+export const ROLES: Role[] = ["admin", "socio", "financeiro", "operador", "consulta"];
 
 export const ROLE_LABEL: Record<Role, string> = {
   admin: "Administrador",
   socio: "Sócio",
   financeiro: "Financeiro",
+  operador: "Operador",
   consulta: "Consulta",
 };
 
@@ -17,6 +19,7 @@ export const ROLE_HELP: Record<Role, string> = {
   admin: "Tudo, inclusive cadastrar usuários e níveis de acesso.",
   socio: "Gestão completa e admin do site, sem cadastrar usuários.",
   financeiro: "Lança e consulta o financeiro. Sem cadastros e sem admin do site.",
+  operador: "Quem voa e aplica: abre ordens de serviço e usa o Campo. Não vê financeiro nem valores.",
   consulta: "Só visualiza o financeiro. Não altera nada.",
 };
 
@@ -27,6 +30,8 @@ export type Access = {
   role: Role | null;
   /** pode lançar/editar financeiro */
   canWrite: boolean;
+  /** abre/edita OS e usa o Campo (inclui o operador, que não vê financeiro) */
+  canOperate: boolean;
   /** cadastros (sócios/contas) e admin do site */
   canManage: boolean;
   isAdmin: boolean;
@@ -64,7 +69,16 @@ export const getAccess = cache(async (): Promise<Access | null> => {
     name: name || user.email || "",
     role,
     canWrite: role === "admin" || role === "socio" || role === "financeiro",
+    canOperate: role === "admin" || role === "socio" || role === "financeiro" || role === "operador",
     canManage: role === "admin" || role === "socio",
     isAdmin: role === "admin",
   };
 });
+
+/** Telas de financeiro: o operador volta para o início (o banco também bloqueia a leitura). */
+export async function requireFinanceAccess() {
+  const access = await getAccess();
+  if (!access) redirect("/login");
+  if (access.role === "operador") redirect("/gestao");
+  return access;
+}

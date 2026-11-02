@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getAccess } from "@/lib/access";
+import { getAccess, requireFinanceAccess } from "@/lib/access";
 import { sum } from "@/lib/data";
 import { formatBRL } from "@/lib/format";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -8,6 +8,7 @@ import { ClientsManager, type ClientRow } from "@/components/ClientsManager";
 export const metadata = { title: "Clientes" };
 
 export default async function ClientsPage() {
+  await requireFinanceAccess();
   const access = await getAccess();
   const supabase = await createClient();
   const cl = await supabase.from("clients").select("id, name, doc, phone, city, price_per_ha, notes, active").order("name");
