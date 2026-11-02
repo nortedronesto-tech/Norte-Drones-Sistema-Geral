@@ -2,9 +2,11 @@
 // Referências: Syngenta (preparo da calda) e Agrobula (calculadora). Regras gerais — a BULA do produto,
 // o RECEITUÁRIO do agrônomo e a legislação vigente sempre mandam mais do que qualquer guia.
 
-export const SOURCES = [
+export const SOURCES: { label: string; href?: string }[] = [
   { label: "Syngenta — Calda para pulverização: como preparar e utilizar corretamente", href: "https://maisagro.syngenta.com.br/tudo-sobre-agro/calda-para-pulverizacao-como-preparar-e-utilizar-corretamente/" },
   { label: "Agrobula — Calculadora de calda", href: "https://www.agrobula.com.br/ferramentas/calculadora-calda" },
+  { label: "Embrapa Gado de Corte — Pragas das pastagens: características, danos e manejo (Documentos 300, 2022)" },
+  { label: "Agrofit (MAPA) — produtos registrados", href: "http://agrofit.agricultura.gov.br/" },
 ];
 
 export const DISCLAIMER =
@@ -100,6 +102,12 @@ export const FAQ: Faq[] = [
   { cat: "Depois da aplicação", q: "Como limpar o drone e o tanque?", a: "Enxágue com água e detergente indicado, passando por tanque, mangueiras, filtros e bicos. A água da lavagem tem destino correto (não vai para rio, lago ou esgoto). Deixe o equipamento limpo para a próxima calda não reagir com resíduo da anterior.", tags: "lavar limpar drone tanque" },
   { cat: "Depois da aplicação", q: "O que fazer com as embalagens vazias?", a: "Faça a tríplice lavagem das embalagens que podem ser lavadas, inutilize (fure o fundo) e devolva no local indicado na nota fiscal, como a central de recebimento da região. Embalagem não lavada tem outro destino: veja o rótulo.", tags: "embalagem triplice lavagem devolucao inpev" },
   { cat: "Depois da aplicação", q: "O que são intervalo de segurança, carência e reentrada?", a: "Carência é o tempo mínimo entre a última aplicação e a colheita. Intervalo de reentrada é o tempo antes de pessoas voltarem à área tratada sem proteção. Os dois estão na bula do produto.", tags: "carencia intervalo reentrada colheita" },
+  // ------------------------------------------------------------------ pragas de pastagem (Embrapa)
+  { cat: "Pragas de pastagem", q: "Quando aplicar inseticida contra cigarrinha-das-pastagens?", a: "O químico é a última opção. Se for necessário, deve coincidir com o início do aparecimento dos adultos, que ficam nas folhas e vivem só 7 a 10 dias. Aplicar depois que o pasto já amarelou costuma ser em vão. Não há nível de controle oficial: a decisão depende do histórico da área e do agrônomo. Use só produto registrado para pastagem e respeite a retirada dos animais.", tags: "cigarrinha inseticida quando aplicar adultos pastagem" },
+  { cat: "Pragas de pastagem", q: "Como confirmar o percevejo-castanho no pasto?", a: "Cave até 60 cm na borda da reboleira, entre o capim verde e o seco, em vários pontos, espalhando a terra numa lona escura para enxergar as ninfas brancas. Sinais: touceira que sai fácil, cheiro de “maria-fedida” e reboleiras que crescem. Não há nível de dano definido, e o controle químico é pouco viável.", tags: "percevejo castanho confirmar cavar reboleira" },
+  { cat: "Pragas de pastagem", q: "Como diferenciar praga de seca no pasto?", a: "O percevejo-das-gramíneas e o castanho causam murcha e amarelecimento em reboleiras que lembram falta de água. Veja se o dano acompanha a chuva: se a mancha cresce mesmo com umidade, procure insetos na base e nas raízes. Cigarrinha deixa espuma na base e estrias esbranquiçadas nas folhas.", tags: "praga ou seca diferenciar amarelecimento reboleira" },
+  { cat: "Pragas de pastagem", q: "Como evitar cigarrinha sem produto químico?", a: "Use capim resistente (Marandu resiste às típicas, mas não às de Mahanarva; BRS Ipyporã resiste às duas), ajuste altura e carga animal para reduzir a palha no solo e considere o fungo Metarhizium anisopliae, que não exige retirar o gado.", tags: "cigarrinha resistente capim manejo biologico" },
+  { cat: "Pragas de pastagem", q: "Onde vejo quais produtos são registrados para pastagem?", a: "No Agrofit, do Ministério da Agricultura (agrofit.agricultura.gov.br). Só use produto registrado para a praga e a cultura, com receituário do agrônomo, e confira carência e retirada dos animais na bula.", tags: "agrofit registro produto pastagem receituario" },
   // ------------------------------------------------------------------ documentos
   { cat: "Documentos e regras", q: "Preciso de receituário agronômico?", a: "Sim. Agrotóxico só é vendido e aplicado com receituário de engenheiro agrônomo habilitado. É ele que define produto, dose e mistura. Guarde a cópia junto do registro da aplicação.", tags: "receituario agronomo obrigatorio" },
   { cat: "Documentos e regras", q: "Posso aplicar perto de casas, rios e criações?", a: "Respeite as distâncias mínimas de moradias, povoados, criações, mananciais e culturas sensíveis definidas pela legislação do Ministério da Agricultura e pelo rótulo do produto. Confirme as regras vigentes para aplicação com drone antes de voar perto desses pontos.", tags: "distancia casas rios criacao abelhas legislacao mapa" },
@@ -109,12 +117,13 @@ export const FAQ: Faq[] = [
 export const FAQ_CATEGORIES = [...new Set(FAQ.map((f) => f.cat))];
 
 // Seções do guia de campo (uma página por seção em /gestao/campo/[secao]).
-export type Secao = "pulverizacao" | "foliar" | "solidos" | "passo-a-passo" | "duvidas";
+export type Secao = "pulverizacao" | "foliar" | "solidos" | "pragas" | "passo-a-passo" | "duvidas";
 
 export const SECOES: { id: Secao; label: string }[] = [
   { id: "pulverizacao", label: "Pulverização" },
   { id: "foliar", label: "Foliar" },
   { id: "solidos", label: "Sólidos" },
+  { id: "pragas", label: "Pragas de pastagem" },
   { id: "passo-a-passo", label: "Passo a passo" },
   { id: "duvidas", label: "Tira-dúvidas" },
 ];

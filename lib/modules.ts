@@ -1,7 +1,7 @@
 // Fonte única do menu e da tela inicial: cada módulo (grupo) do sistema e suas páginas.
 // Para criar uma área nova (ex.: Clientes, Frota), basta acrescentar um grupo aqui.
 import {
-  ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Camera, Database, ExternalLink, FileBarChart, FlaskConical,
+  ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, Database, ExternalLink, FileBarChart, FlaskConical,
   Globe, HelpCircle, Image as ImageIcon, KeyRound, Landmark, ListChecks, Megaphone, PiggyBank, Phone, Settings, Sprout,
   Users, Video, Wheat, Sparkles, type LucideIcon,
 } from "lucide-react";
@@ -24,11 +24,12 @@ export const MODULES: ModuleGroup[] = [
     ],
   },
   {
-    id: "campo", label: "Campo", icon: Sprout, blurb: "Calculadoras de calda e sólidos, passo a passo e dúvidas.",
+    id: "campo", label: "Campo", icon: Sprout, blurb: "Calculadoras de calda e sólidos, pragas de pastagem, passo a passo e dúvidas.",
     items: [
       { href: "/gestao/campo/pulverizacao", label: "Calculadora · Pulverização", icon: Calculator },
       { href: "/gestao/campo/foliar", label: "Calculadora · Foliar", icon: FlaskConical },
       { href: "/gestao/campo/solidos", label: "Calculadora · Sólidos", icon: Wheat },
+      { href: "/gestao/campo/pragas", label: "Pragas de pastagem", icon: Bug },
       { href: "/gestao/campo/passo-a-passo", label: "Passo a passo da calda", icon: BookOpen },
       { href: "/gestao/campo/duvidas", label: "Tira-dúvidas", icon: HelpCircle },
     ],

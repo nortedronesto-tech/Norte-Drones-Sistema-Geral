@@ -135,6 +135,17 @@ test("conteúdo do guia: sem itens vazios, perguntas únicas e fontes citadas", 
     assert.ok(f.a.length > 60, f.q);
   }
   assert.ok(STEPS.length >= 10 && STEPS.every((s) => s.title && s.body));
-  assert.equal(SOURCES.length, 2);
-  assert.ok(SOURCES.every((s) => s.href.startsWith("https://")));
+  assert.ok(SOURCES.length >= 4);
+  assert.ok(SOURCES.every((s) => !s.href || /^https?:\/\//.test(s.href)));
+});
+
+import { PRAGAS } from "../lib/campo-pragas.ts";
+test("pragas de pastagem: campos preenchidos, ids únicos e sem dose inventada", () => {
+  assert.ok(PRAGAS.length >= 7);
+  assert.equal(new Set(PRAGAS.map((p) => p.id)).size, PRAGAS.length);
+  for (const p of PRAGAS) {
+    assert.ok(p.procurar.length >= 1 && p.manejo.length >= 1, p.id);
+    assert.ok(p.resumo.length > 40 && p.danos.length > 30 && p.conferir.length > 20, p.id);
+    assert.ok(!/\b\d+[,.]?\d*\s*(mL|g|kg|L)\s*(\/|por)\s*ha\b/i.test(JSON.stringify(p)), `${p.id} cita dose`);
+  }
 });

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Copy, Plus, Search, Share2, Trash2, TriangleAlert } from "lucide-react";
 import { calcCalda, calcSolidos, FORMULATIONS, recipeText, solidosText, type DoseUnit, type Formulation, type Product } from "@/lib/calda";
+import { AGROFIT, PRAGAS, PRAGAS_FONTE, PRAGA_GRUPOS } from "@/lib/campo-pragas";
 import { DISCLAIMER, EMERGENCY, FAQ, FAQ_CATEGORIES, SECOES, SOURCES, STEPS, type Secao } from "@/lib/campo-content";
 import { saveRecipe, deleteRecipe } from "@/app/gestao/campo/actions";
 import { btn, Card, CardTitle, EmptyState, FormError, inputClass, labelClass } from "@/components/ui";
@@ -64,6 +65,7 @@ export function CampoGuide({ secao, recipes, recipesEnabled, canWrite, canManage
         <CaldaCalculator key={secao} tipo={secao} recipes={recipes} recipesEnabled={recipesEnabled} canWrite={canWrite} canManage={canManage} />
       )}
       {secao === "solidos" && <SolidosCalculator />}
+      {secao === "pragas" && <Pragas />}
       {secao === "passo-a-passo" && <Steps />}
       {secao === "duvidas" && <Faq />}
 
@@ -71,7 +73,7 @@ export function CampoGuide({ secao, recipes, recipesEnabled, canWrite, canManage
         <CardTitle>Fontes de referência</CardTitle>
         <ul className="list-disc space-y-1 pl-5 text-sm">
           {SOURCES.map((s) => (
-            <li key={s.href}><a href={s.href} target="_blank" rel="noopener noreferrer" className="text-brand-green underline">{s.label}</a></li>
+            <li key={s.label}>{s.href ? <a href={s.href} target="_blank" rel="noopener noreferrer" className="text-brand-green underline">{s.label}</a> : s.label}</li>
           ))}
         </ul>
         <p className="mt-2 text-xs text-brand-graphite/60">Resumo em linguagem própria. Leia as páginas originais e a bula do produto.</p>
@@ -325,6 +327,53 @@ function SolidosCalculator() {
           {msg && <p role="status" className="mt-2 text-sm font-semibold text-brand-green">{msg}</p>}
         </Card>
       )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ pragas de pastagem (Embrapa)
+function Pragas() {
+  const [q, setQ] = useState("");
+  const [grupo, setGrupo] = useState("");
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  const list = PRAGAS.filter((p) => (!grupo || p.grupo === grupo) && words.every((w) => norm(`${p.nome} ${p.cientifico} ${p.resumo} ${p.tags}`).includes(w)));
+  return (
+    <div className="space-y-3">
+      <p className="rounded-xl bg-brand-green/10 px-3 py-2.5 text-xs font-medium leading-snug text-brand-dark md:px-4 md:py-3 md:text-sm">
+        Como reconhecer, conferir no campo e manejar as principais pragas do pasto. Aqui não há dose nem produto: isso vem do receituário do agrônomo, só com produto registrado para pastagem.
+      </p>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-brand-graphite/40" aria-hidden />
+        <input aria-label="Buscar praga" className={`${inputClass} pl-11`} placeholder="Buscar: espuma, reboleira, lagarta, cupim…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {["", ...PRAGA_GRUPOS].map((g) => (
+          <button key={g || "todas"} type="button" onClick={() => setGrupo(g)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-bold ${grupo === g ? "border-brand-green bg-brand-green text-white" : "border-black/15 bg-white"}`}>{g || "Todas"}</button>
+        ))}
+      </div>
+      {list.length === 0 ? <EmptyState>Nenhuma praga encontrada. Tente outra palavra.</EmptyState> : (
+        <div className="space-y-2">
+          {list.map((p) => (
+            <details key={p.id} className="group rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
+              <summary className="cursor-pointer list-none marker:hidden">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-brand-green">{p.grupo}</span>
+                <span className="block font-bold text-brand-dark">{p.nome}</span>
+                <span className="block text-xs italic text-brand-graphite/60">{p.cientifico}</span>
+                <span className="mt-1 block text-sm text-brand-graphite/85">{p.resumo}</span>
+              </summary>
+              <div className="mt-3 space-y-3 border-t border-black/[0.06] pt-3 text-sm">
+                <section><h3 className="font-bold text-brand-dark">O que procurar</h3><ul className="mt-1 list-disc space-y-1 pl-5">{p.procurar.map((x) => <li key={x}>{x}</li>)}</ul></section>
+                <section><h3 className="font-bold text-brand-dark">Danos</h3><p className="mt-1">{p.danos}</p></section>
+                <section><h3 className="font-bold text-brand-dark">Como conferir</h3><p className="mt-1">{p.conferir}</p></section>
+                <section><h3 className="font-bold text-brand-dark">Manejo</h3><ul className="mt-1 list-disc space-y-1 pl-5">{p.manejo.map((x) => <li key={x}>{x}</li>)}</ul></section>
+                {p.atencao && <p className="rounded-xl bg-brand-amber/10 px-3 py-2 text-[#7a4a00]">{p.atencao}</p>}
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
+      <p className="text-xs text-brand-graphite/70">{PRAGAS_FONTE} <a href={AGROFIT.href} target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-green underline">{AGROFIT.label}</a>.</p>
     </div>
   );
 }
