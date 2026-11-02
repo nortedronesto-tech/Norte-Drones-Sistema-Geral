@@ -5,7 +5,7 @@ Um só projeto Next.js 16 (App Router) + Supabase, publicado em um único projet
 | Área | Rota | Acesso | O que é |
 |---|---|---|---|
 | Site público | `/` | aberto | Site institucional (contatos e imagens vêm do Supabase) |
-| Gestão (financeiro) | `/gestao/*` | sócios logados | Lançamentos, despesa com foto, fundo de reserva, cadastros, rateio por sócio |
+| Gestão (financeiro) | `/gestao/*` | sócios logados | Lançamentos, despesa com foto, fundo de reserva, cadastros, rateio por sócio, **Guia de campo** (calculadora de calda por tanque, passo a passo, tira-dúvidas e receitas salvas — migration `0007`) |
 | Painel administrativo | `/admin` | sócios logados | Contatos e imagens do site, gerador de posts e de vídeos |
 | Login | `/login` | aberto | E-mail + senha (Supabase Auth), serve para `/gestao` e `/admin` |
 

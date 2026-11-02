@@ -13,6 +13,7 @@ const PAGES: Tab[] = [
   { label: "Lançamentos", href: "/gestao/lancamentos" },
   { label: "Despesa com foto", href: "/gestao/despesa-foto" },
   { label: "Reserva", href: "/gestao/reserva" },
+  { label: "Guia de campo", href: "/gestao/campo" },
   { label: "Cadastros", href: "/gestao/cadastros" },
   { label: "Site público", href: "/", external: true },
 ];

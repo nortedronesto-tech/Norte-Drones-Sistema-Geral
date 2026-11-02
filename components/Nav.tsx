@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Camera, Globe, House, ListChecks, LogOut, PiggyBank, Settings } from "lucide-react";
+import { Camera, Globe, House, ListChecks, LogOut, PiggyBank, Settings, Sprout } from "lucide-react";
 import { signOut } from "@/app/gestao/actions";
 import type { Role } from "@/lib/access";
 
@@ -11,6 +11,7 @@ const ALL_ITEMS = [
   { href: "/gestao", label: "Início", icon: House },
   { href: "/gestao/lancamentos", label: "Lançamentos", icon: ListChecks },
   { href: "/gestao/despesa-foto", label: "Despesa com foto", icon: Camera, cta: true, needs: "write" },
+  { href: "/gestao/campo", label: "Campo", icon: Sprout },
   { href: "/gestao/reserva", label: "Reserva", icon: PiggyBank },
   { href: "/gestao/cadastros", label: "Cadastros", icon: Settings, needs: "manage" },
 ];
