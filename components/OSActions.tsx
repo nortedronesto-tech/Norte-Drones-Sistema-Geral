@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Copy, Download, FileText, Pencil, Share2, Trash2, XCircle } from "lucide-react";
-import { cancelOS, closeOS, deleteOS } from "@/app/gestao/os/actions";
+import { cancelOS, closeOS, deleteOS, setClientOk } from "@/app/gestao/os/actions";
+import { formatDate, todayBR } from "@/lib/format";
 import type { AccountBalance } from "@/lib/types";
 import { AccountPicker } from "./AccountPicker";
 import { makeOsPdf, whatsappDigits } from "@/lib/os-pdf-client";
@@ -12,9 +13,9 @@ import type { OsData } from "@/lib/os";
 import type { PdfContacts } from "@/lib/os-pdf";
 import { btn, Card, CardTitle, FormError, inputClass, labelClass } from "./ui";
 
-export function OSActions({ osId, status, accounts, due, text, total, data, contacts, clientPhone, canWrite, canManage }: {
+export function OSActions({ osId, status, accounts, due, text, total, data, contacts, clientPhone, clientOkNote, canWrite, canManage }: {
   osId: string; status: "aberta" | "concluida" | "cancelada"; accounts: AccountBalance[]; due: string; text: string; total: string;
-  data: OsData; contacts: PdfContacts; clientPhone: string | null; canWrite: boolean; canManage: boolean;
+  data: OsData; contacts: PdfContacts; clientPhone: string | null; clientOkNote: string | null; canWrite: boolean; canManage: boolean;
 }) {
   const router = useRouter();
   const [account, setAccount] = useState(accounts[0]?.id ?? "");
@@ -25,6 +26,8 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
   const [includePrice, setIncludePrice] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [waLink, setWaLink] = useState<string | null>(null);
+  const [okDate, setOkDate] = useState(todayBR());
+  const [okNote, setOkNote] = useState("");
 
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(null), 3500); };
   const copy = async () => { try { await navigator.clipboard.writeText(text); flash("Resumo copiado."); } catch { flash("Não deu para copiar."); } };
@@ -40,8 +43,8 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
   const sharePdf = async (downloadOnly = false) => {
     setError(null); setWaLink(null); setPdfBusy(true);
     try {
-      const file = await makeOsPdf(data, { includePrice, contacts });
-      const message = `Olá! Segue o relatório da OS nº ${data.number} — ${data.client}.`;
+      const file = await makeOsPdf(data, { includePrice, contacts, kind: status === "aberta" ? "autorizacao" : "comprovante" });
+      const message = `Olá! Segue a OS nº ${data.number} — ${data.client}.${data.clientOkAt ? "" : " Para autorizar, é só responder com OK."}`;
       if (!downloadOnly && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
         try { await navigator.share({ files: [file], title: `OS nº ${data.number}`, text: message }); }
         catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) { download(file); flash("PDF baixado. Anexe no WhatsApp."); } }
@@ -78,6 +81,30 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
         {canWrite && status === "aberta" && <Link href={`/gestao/os/${osId}?editar=1`} className={btn.ghost}><Pencil className="size-5" aria-hidden /> Editar</Link>}
       </div>
       {msg && <p role="status" className="text-sm font-semibold text-brand-green">{msg}</p>}
+
+      <Card className={data.clientOkAt ? "border-brand-green/40" : "border-brand-amber/50"}>
+        <CardTitle>Autorização do cliente (OK no WhatsApp)</CardTitle>
+        {data.clientOkAt ? (
+          <div className="space-y-2">
+            <p className="flex items-center gap-2 font-semibold text-brand-green"><CheckCircle2 className="size-5" aria-hidden /> Autorizada em {formatDate(data.clientOkAt)}</p>
+            {clientOkNote && <p className="text-sm text-brand-graphite/80">{clientOkNote}</p>}
+            {canWrite && <button type="button" className="text-sm font-bold text-danger underline" disabled={pending} onClick={() => run(() => setClientOk(osId, false, okDate))}>Desfazer registro</button>}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-brand-graphite/80">Mande o PDF e peça para o cliente responder <strong>OK</strong>. Quando ele responder, registre aqui. Guarde a conversa no WhatsApp: ela traz a data e a hora.</p>
+            {canWrite ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div><label htmlFor="okdate" className={labelClass}>Data da resposta</label><input id="okdate" type="date" className={inputClass} value={okDate} onChange={(e) => setOkDate(e.target.value)} /></div>
+                  <div><label htmlFor="oknote" className={labelClass}>Observação (opcional)</label><input id="oknote" className={inputClass} maxLength={300} value={okNote} onChange={(e) => setOkNote(e.target.value)} placeholder="Ex.: respondeu OK às 14h" /></div>
+                </div>
+                <button type="button" className={btn.cta} disabled={pending || !okDate} onClick={() => run(() => setClientOk(osId, true, okDate, okNote))}><CheckCircle2 className="size-5" aria-hidden /> Registrar: cliente respondeu OK</button>
+              </>
+            ) : <p className="text-sm font-semibold text-[#9a5a00]">Ainda sem OK do cliente.</p>}
+          </div>
+        )}
+      </Card>
 
       {canWrite && status === "aberta" && (
         <Card className="border-brand-green/40">

@@ -42,6 +42,7 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
     number: o.number, client: client?.name ?? "—", farm: o.farm, date: o.service_date, areaHa: Number(o.area_ha), pricePerHa: Number(o.price_per_ha),
     crop: o.crop, target: o.target, drone: o.drone, operator: o.operator_name, rateLHa: n(o.rate_l_ha), tankL: n(o.tank_l), products,
     windKmh: n(o.wind_kmh), tempC: n(o.temp_c), humidityPct: n(o.humidity_pct), notes: o.notes,
+    clientOkAt: (o.client_ok_at as string | null | undefined) ?? null,
   };
   const total = osTotal(data.areaHa, data.pricePerHa);
   const calda = osCalda(data);
@@ -63,7 +64,7 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
             {dl("Valor", `${data.areaHa.toLocaleString("pt-BR")} ha × ${formatBRL(data.pricePerHa)} = ${formatBRL(total)}`)}
             {dl("Cultura", data.crop)}{dl("Alvo / praga", data.target)}{dl("Drone", data.drone)}{dl("Operador", data.operator)}
             {dl("Clima", [data.windKmh != null && `vento ${data.windKmh} km/h`, data.tempC != null && `${data.tempC} °C`, data.humidityPct != null && `umidade ${data.humidityPct}%`].filter(Boolean).join(" · "))}
-            {dl("Observações", data.notes)}
+            {dl("Observações", data.notes)}{dl("Autorização do cliente", data.clientOkAt ? `OK em ${formatDate(data.clientOkAt)}` : "ainda sem OK")}
           </dl>
         </Card>
         {products.length > 0 && (
@@ -73,7 +74,7 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
             {calda && <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-black/[0.04] p-3 font-sans text-sm">{recipeText(`OS ${o.number}`, calda.input, calda.result)}</pre>}
           </Card>
         )}
-        <OSActions osId={o.id} status={o.status} accounts={accounts} due={defaultDue(todayBR())} text={osText(data)} total={formatBRL(total)} data={data} contacts={pdfContacts} clientPhone={client?.phone ?? null}
+        <OSActions osId={o.id} status={o.status} accounts={accounts} due={defaultDue(todayBR())} text={osText(data)} total={formatBRL(total)} data={data} contacts={pdfContacts} clientPhone={client?.phone ?? null} clientOkNote={(o.client_ok_note as string | null | undefined) ?? null}
           canWrite={access?.canWrite ?? false} canManage={access?.canManage ?? false} />
       </div>
     </>

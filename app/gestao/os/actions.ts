@@ -139,3 +139,23 @@ export async function deleteOS(id: string): Promise<ActionResult> {
   refresh();
   return { ok: true };
 }
+
+/** Registra (ou desfaz) que o cliente respondeu OK no WhatsApp, com a data e uma observação. */
+export async function setClientOk(id: string, on: boolean, date: string, note?: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(id).success) return fail("OS inválida");
+  if (on && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail("Data inválida");
+  const cleanNote = (note ?? "").trim().slice(0, 300);
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("service_orders")
+    .update({ client_ok_at: on ? date : null, client_ok_note: on && cleanNote ? cleanNote : null })
+    .eq("id", id)
+    .select("id");
+  if (error) {
+    if (error.code === "42703" || error.code === "PGRST204") return fail("Registro do OK ainda não foi ativado (falta rodar a migration 0011 no Supabase).");
+    return dbError(error);
+  }
+  if (!data?.length) return fail("Seu nível de acesso não permite registrar.");
+  refresh();
+  return { ok: true };
+}

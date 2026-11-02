@@ -42,3 +42,9 @@ test("texto do WhatsApp traz cliente, área, produtos, clima e valor", () => {
   assert.match(t, /R\$\s?3\.800,00/);
   assert.doesNotMatch(osText(base, false), /Valor:/);
 });
+
+test("texto pede o OK do cliente, e para de pedir depois que ele respondeu", () => {
+  assert.match(osText(base), /responder esta mensagem com \*OK\*/);
+  assert.doesNotMatch(osText({ ...base, clientOkAt: "2026-11-03" }), /responder esta mensagem/);
+  assert.doesNotMatch(osText(base, true, false), /responder esta mensagem/);
+});

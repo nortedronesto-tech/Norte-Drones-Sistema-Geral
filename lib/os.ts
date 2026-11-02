@@ -38,6 +38,7 @@ export type OsData = {
   tempC?: number | null;
   humidityPct?: number | null;
   notes?: string | null;
+  clientOkAt?: string | null; // data (YYYY-MM-DD) em que o cliente respondeu OK
 };
 
 const n = (v: number, d = 2) => v.toLocaleString("pt-BR", { maximumFractionDigits: d });
@@ -53,7 +54,7 @@ export function osCalda(o: OsData) {
 }
 
 /** Texto pronto para o WhatsApp: resumo do serviço feito, sem valores internos de calda se não houver. */
-export function osText(o: OsData, withPrice = true): string {
+export function osText(o: OsData, withPrice = true, askOk = true): string {
   const lines = [
     `*Norte Drones — Ordem de serviço nº ${o.number}*`,
     `Cliente: ${o.client}${o.farm ? ` · ${o.farm}` : ""}`,
@@ -71,6 +72,7 @@ export function osText(o: OsData, withPrice = true): string {
   if (c) lines.push(`Calda: ${n(o.rateLHa ?? 0)} L/ha · tanque ${n(o.tankL ?? 0)} L · ${c.result.tankCount} tanque(s)`);
   if (withPrice) lines.push(`Valor: ${n(o.areaHa)} ha × ${brl(o.pricePerHa)} = *${brl(osTotal(o.areaHa, o.pricePerHa))}*`);
   if (o.notes) lines.push(`Obs.: ${o.notes}`);
+  if (askOk && !o.clientOkAt) lines.push("", "Para autorizar, é só responder esta mensagem com *OK*.");
   return lines.join("\n");
 }
 

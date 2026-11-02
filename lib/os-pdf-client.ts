@@ -1,5 +1,5 @@
 // Gera o PDF da OS no navegador (sem servidor) e entrega como arquivo, pronto para compartilhar.
-import { drawOsPdf, osFileName, type PdfContacts, type PdfLogo } from "./os-pdf.ts";
+import { drawOsPdf, osFileName, type OsPdfKind, type PdfContacts, type PdfLogo } from "./os-pdf.ts";
 import type { OsData } from "./os.ts";
 
 let logoPromise: Promise<PdfLogo | undefined> | null = null;
@@ -25,7 +25,7 @@ function loadLogo(): Promise<PdfLogo | undefined> {
   return logoPromise;
 }
 
-export async function makeOsPdf(data: OsData, opts: { includePrice: boolean; contacts?: PdfContacts }): Promise<File> {
+export async function makeOsPdf(data: OsData, opts: { includePrice: boolean; contacts?: PdfContacts; kind?: OsPdfKind }): Promise<File> {
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadLogo()]);
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   doc.setProperties({ title: `OS nº ${data.number} — ${data.client}`, author: "Norte Drones", creator: "Norte Drones" });

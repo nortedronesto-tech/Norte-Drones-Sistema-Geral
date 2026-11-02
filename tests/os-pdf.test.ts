@@ -34,6 +34,11 @@ test("gera PDF válido com e sem valores, e com muitos produtos (várias página
   assert.equal(a.getNumberOfPages(), 1);
   if (out) writeFileSync(`${out}/os-com-valor.pdf`, bytesA);
 
+  const c = new jsPDF({ unit: "mm", format: "a4" });
+  drawOsPdf(c, { ...data, clientOkAt: "2026-11-03" }, { includePrice: true, logo: logoOpt, kind: "comprovante" });
+  assert.equal(c.getNumberOfPages(), 1);
+  if (out) writeFileSync(`${out}/os-autorizada.pdf`, Buffer.from(c.output("arraybuffer")));
+
   const b = new jsPDF({ unit: "mm", format: "a4" });
   drawOsPdf(b, { ...data, products: Array.from({ length: 30 }, (_, i) => ({ name: `Produto ${i + 1} (exemplo)`, dose: i + 1, unit: "mL/ha" as const, form: "solucao" as const })) }, { includePrice: false, logo: logoOpt });
   assert.ok(b.getNumberOfPages() >= 2);
