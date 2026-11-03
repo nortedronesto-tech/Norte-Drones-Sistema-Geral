@@ -4,6 +4,7 @@ import { getAccess } from "@/lib/access";
 import { Nav } from "@/components/Nav";
 import { signOut } from "./actions";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { OfflineSync } from "@/components/OfflineSync";
 
 export const metadata: Metadata = {
   title: { default: "Norte Drones · Gestão", template: "%s · Norte Drones" },
@@ -41,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto max-w-5xl">{children}</div>
       </main>
       <ServiceWorkerRegister />
+      <OfflineSync />
     </div>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, CloudOff, Plus, Trash2 } from "lucide-react";
 import { saveClient, saveOS } from "@/app/gestao/os/actions";
 import { FORMULATIONS, type DoseUnit, type Formulation, type Product } from "@/lib/calda";
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
 import { DEFAULT_PRICE_PER_HA, osTotal } from "@/lib/os";
+import { enqueue, type KV } from "@/lib/outbox";
 import { btn, FormError, inputClass, labelClass } from "./ui";
 
 export type OsClient = { id: string; name: string; price_per_ha: number | null };
@@ -28,6 +29,9 @@ const LS_DRONE = "norte:os:drone";
 const LS_OP = "norte:os:operador";
 const readLS = (k: string) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } };
 const writeLS = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* ignora */ } };
+const LS_CLIENTS = "norte:clients:v1"; // lista de clientes guardada para registrar OS sem sinal
+const lsKv: KV = { getItem: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, setItem: writeLS };
+const isOffline = () => typeof navigator !== "undefined" && !navigator.onLine;
 
 export function OSForm({ clients: initialClients, initial, defaultClientId, hideMoney = false }: { clients: OsClient[]; initial?: OsInitial; defaultClientId?: string; hideMoney?: boolean }) {
   const router = useRouter();
@@ -51,7 +55,19 @@ export function OSForm({ clients: initialClients, initial, defaultClientId, hide
   const [hum, setHum] = useState(txt(initial?.humidity_pct));
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [queued, setQueued] = useState<string | null>(null);
   const [pending, start] = useTransition();
+
+  // Guarda a lista de clientes no aparelho; sem sinal (página aberta da cópia), junta com a guardada.
+  useEffect(() => {
+    try {
+      if (initialClients.length > 0) localStorage.setItem(LS_CLIENTS, JSON.stringify(initialClients));
+      else {
+        const saved = JSON.parse(localStorage.getItem(LS_CLIENTS) ?? "[]") as OsClient[];
+        if (Array.isArray(saved) && saved.length) setClients(saved);
+      }
+    } catch { /* sem armazenamento */ }
+  }, [initialClients]);
 
   const client = clients.find((c) => c.id === clientId);
   const suggested = client?.price_per_ha ?? DEFAULT_PRICE_PER_HA;
@@ -61,6 +77,12 @@ export function OSForm({ clients: initialClients, initial, defaultClientId, hide
 
   const addClient = () => start(async () => {
     setError(null);
+    if (isOffline()) { // sem sinal: o cliente é cadastrado quando a OS for enviada
+      const local = { id: `local:${crypto.randomUUID()}`, name: newClient.trim(), price_per_ha: null };
+      setClients((cs) => [...cs, local].sort((a, b) => a.name.localeCompare(b.name)));
+      setClientId(local.id); setNewClient(""); setAddingClient(false);
+      return;
+    }
     const r = await saveClient({ name: newClient });
     if (!r.ok || !r.data) return setError(r.ok ? "Não foi possível cadastrar." : r.error);
     setClients((cs) => [...cs, { id: r.data!.id, name: newClient.trim(), price_per_ha: null }].sort((a, b) => a.name.localeCompare(b.name)));
@@ -81,16 +103,50 @@ export function OSForm({ clients: initialClients, initial, defaultClientId, hide
       if (!r.name.trim() || !(dose > 0)) return setError("Cada produto precisa de nome e dose (do receituário).");
       products.push({ name: r.name.trim(), dose, unit: r.unit, form: r.form });
     }
-    start(async () => {
-      const res = await saveOS({
-        id: initial?.id, client_id: clientId, farm, service_date: date, area_ha: areaN, price_per_ha: priceN, crop, target, drone, operator_name: operator,
-        rate_l_ha: optNum(rate), tank_l: optNum(tank), products, wind_kmh: optNum(wind), temp_c: optNum(temp), humidity_pct: optNum(hum), notes,
+    const body = {
+      client_id: clientId, farm, service_date: date, area_ha: areaN, price_per_ha: priceN, crop, target, drone, operator_name: operator,
+      rate_l_ha: optNum(rate), tank_l: optNum(tank), products, wind_kmh: optNum(wind), temp_c: optNum(temp), humidity_pct: optNum(hum), notes,
+    };
+    const newKey = initial ? undefined : crypto.randomUUID();
+    // Sem sinal: guarda no aparelho e envia sozinho quando a internet voltar.
+    const saveOffline = () => {
+      if (!newKey) return setError("Sem sinal agora. Para editar uma OS já enviada, espere o sinal voltar.");
+      const local = client?.id.startsWith("local:") ? client : null;
+      enqueue(lsKv, {
+        key: newKey, label: `${client?.name ?? "Cliente"} · ${areaN.toLocaleString("pt-BR")} ha${farm ? ` · ${farm}` : ""}`,
+        payload: local ? { ...body, client_id: "" } : body, newClientName: local?.name,
       });
+      writeLS(LS_DRONE, drone); writeLS(LS_OP, operator);
+      window.dispatchEvent(new Event("norte:outbox"));
+      setQueued(`OS de ${client?.name ?? "cliente"} guardada no aparelho.`);
+    };
+    if (isOffline()) return saveOffline();
+    start(async () => {
+      let res;
+      try {
+        res = await saveOS({ ...body, id: initial?.id, new_id: newKey });
+      } catch { // caiu o sinal no meio: guarda no aparelho
+        return saveOffline();
+      }
       if (!res.ok || !res.data) return setError(res.ok ? "Não foi possível salvar." : res.error);
       writeLS(LS_DRONE, drone); writeLS(LS_OP, operator);
       router.push(`/gestao/os/${res.data.id}`);
     });
   };
+
+  if (queued) {
+    return (
+      <div className="space-y-4 text-center">
+        <CloudOff className="mx-auto size-10 text-brand-amber" aria-hidden />
+        <p className="text-lg font-extrabold text-brand-dark">{queued}</p>
+        <p className="text-sm text-brand-graphite/80">Quando o sinal voltar, ela é enviada sozinha. Você pode registrar outra agora.</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <button type="button" className={btn.primary} onClick={() => { setQueued(null); setArea(""); setFarm(""); setNotes(""); }}><CheckCircle2 className="size-5" aria-hidden /> Registrar outra OS</button>
+          <button type="button" className={btn.ghost} onClick={() => router.push("/gestao/os")}>Ver ordens de serviço</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={submit} className="space-y-5">

@@ -12,6 +12,9 @@
     img { width: 72px; height: 72px; background: #f5f7f7; border-radius: 18px; padding: 12px; box-sizing: border-box; }
     h1 { font-size: 22px; margin: 20px 0 8px; }
     p { margin: 0 0 24px; line-height: 1.5; color: #d6e6dd; }
+    .links { display: grid; gap: 10px; margin: 0 0 20px; }
+    .links a { display: block; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35); color: #fff; text-decoration: none; font-weight: 600; }
+    .links a.primary { background: #a8d83b; color: #0b3d2e; border-color: #a8d83b; }
     button { background: #a8d83b; color: #0b3d2e; border: 0; border-radius: 12px; padding: 14px 24px; font-size: 16px; font-weight: 700; }
   </style>
 </head>
@@ -19,8 +22,21 @@
   <div class="card">
     <img src="/brand/n-mark.png" alt="">
     <h1>Sem conexão</h1>
-    <p>Não foi possível carregar o sistema. Assim que o sinal voltar, é só tentar de novo.</p>
+    <p>Sem sinal por aqui. Você ainda pode registrar uma OS e usar as calculadoras: tudo fica salvo no aparelho e é enviado quando o sinal voltar.</p>
+    <div class="links">
+      <a class="primary" href="/gestao/os/nova">Nova OS</a>
+      <a href="/gestao/campo/pulverizacao">Calculadora de calda</a>
+      <a href="/gestao/campo/solidos">Calculadora de sólidos</a>
+    </div>
+    <p id="pending" hidden></p>
     <button onclick="location.reload()">Tentar de novo</button>
   </div>
+  <script>
+    try {
+      var list = JSON.parse(localStorage.getItem("norte:outbox:v1") || "[]");
+      var n = Array.isArray(list) ? list.length : 0;
+      if (n > 0) { var el = document.getElementById("pending"); el.hidden = false; el.textContent = n + (n === 1 ? " OS aguardando envio no aparelho." : " OS aguardando envio no aparelho."); }
+    } catch (e) {}
+  </script>
 </body>
 </html>

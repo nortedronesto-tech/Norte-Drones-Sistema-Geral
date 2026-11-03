@@ -60,9 +60,24 @@ export async function deleteClient(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+/** Acha o cliente pelo nome (sem diferenciar maiúscula) ou cadastra: usado ao enviar OS feitas sem sinal. */
+export async function ensureClient(name: string): Promise<ActionResult<{ id: string }>> {
+  const parsed = clientSchema.pick({ name: true }).safeParse({ name });
+  if (!parsed.success) return fail(parsed.error.issues[0].message);
+  const supabase = await createClient();
+  const { data: found } = await supabase.from("clients").select("id").ilike("name", parsed.data.name.replace(/[%_]/g, "\\$&")).limit(1).maybeSingle();
+  if (found) return { ok: true, data: { id: found.id } };
+  const { data, error } = await supabase.from("clients").insert({ name: parsed.data.name }).select("id").single();
+  if (error) return dbError(error);
+  refresh();
+  return { ok: true, data: { id: data.id } };
+}
+
 // --------------------------------------------------------------------- OS
 const osSchema = z.object({
   id: z.uuid().optional(),
+  /** Chave gerada no aparelho para criar a OS: reenviar a mesma chave nunca duplica (fila sem sinal). */
+  new_id: z.uuid().optional(),
   client_id: z.uuid("Escolha o cliente"),
   farm: z.string().trim().max(120).optional(),
   service_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
@@ -90,7 +105,7 @@ export type OsInput = z.input<typeof osSchema>;
 export async function saveOS(input: OsInput): Promise<ActionResult<{ id: string }>> {
   const parsed = osSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0].message);
-  const { id, farm, crop, target, drone, operator_name, notes, rate_l_ha, tank_l, wind_kmh, temp_c, humidity_pct, ...rest } = parsed.data;
+  const { id, new_id, farm, crop, target, drone, operator_name, notes, rate_l_ha, tank_l, wind_kmh, temp_c, humidity_pct, ...rest } = parsed.data;
   const fields = {
     ...rest, farm: farm || null, crop: crop || null, target: target || null, drone: drone || null, operator_name: operator_name || null,
     notes: notes || null, rate_l_ha: rate_l_ha ?? null, tank_l: tank_l ?? null, wind_kmh: wind_kmh ?? null, temp_c: temp_c ?? null, humidity_pct: humidity_pct ?? null,
@@ -103,8 +118,11 @@ export async function saveOS(input: OsInput): Promise<ActionResult<{ id: string 
     refresh();
     return { ok: true, data: { id } };
   }
-  const { data, error } = await supabase.from("service_orders").insert(fields).select("id").single();
-  if (error) return dbError(error);
+  const { data, error } = await supabase.from("service_orders").insert({ ...fields, ...(new_id ? { id: new_id } : {}) }).select("id").single();
+  if (error) {
+    if (new_id && error.code === "23505") return { ok: true, data: { id: new_id } }; // já tinha chegado (reenvio da fila)
+    return dbError(error);
+  }
   refresh();
   return { ok: true, data: { id: data.id } };
 }
