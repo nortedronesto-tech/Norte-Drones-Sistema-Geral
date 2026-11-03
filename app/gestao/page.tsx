@@ -5,7 +5,8 @@ import { getAccess } from "@/lib/access";
 import { getAccountBalances, getPartners, getReservePct, sum } from "@/lib/data";
 import { formatBRL, formatDateShort, monthLabel, monthKey, todayBR } from "@/lib/format";
 import { categoryTotals, dueBuckets, monthReport, monthlySeries, shiftMonth, type Tx } from "@/lib/dashboard";
-import { HBars, MonthlyBars } from "@/components/charts";
+import { CashflowChart, HBars, MonthlyBars } from "@/components/charts";
+import { projectCashflow, type RecurringRule } from "@/lib/cashflow";
 import { ModuleGrid } from "@/components/ModuleGrid";
 import { OperatorHome } from "@/components/OperatorHome";
 import { InstallApp } from "@/components/InstallApp";
@@ -25,7 +26,7 @@ export default async function DashboardPage() {
   const month = monthKey(today);
   const from = `${shiftMonth(month, -5)}-01`;
   const TXCOLS = "type, amount, status, date, paid_at, category";
-  const [accounts, reservePct, partners, reserveRows, paidRes, pendingRes, recent, totalsRes] = await Promise.all([
+  const [accounts, reservePct, partners, reserveRows, paidRes, pendingRes, recent, totalsRes, rulesRes] = await Promise.all([
     getAccountBalances(),
     getReservePct(),
     getPartners(),
@@ -39,6 +40,7 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(6),
     supabase.from("partner_totals").select("*").order("name"),
+    supabase.from("recurring_transactions").select("type, amount, day_of_month, next_due, end_date, active").eq("active", true), // sem a migration 0014 vem vazio
   ]);
 
   const total = sum(accounts.map((a) => a.balance));
@@ -53,6 +55,9 @@ export default async function DashboardPage() {
   const monthIn = report.entradas;
   const monthOut = report.saidas;
   const topExpenses = categoryTotals(paidRows.filter((t) => t.paid_at?.startsWith(month)), "saida").slice(0, 6);
+  const rules: RecurringRule[] = rulesRes.error ? [] : (rulesRes.data ?? []).map((r) => ({ ...r, amount: Number(r.amount) })) as RecurringRule[];
+  const CASH_DAYS = 60;
+  const cash = projectCashflow(total, pendingRows, rules, today, CASH_DAYS);
   const payBuckets = dueBuckets(pendingRows, "a_pagar", today);
   const recBuckets = dueBuckets(pendingRows, "a_receber", today);
   const visibleAccounts = accounts.filter((a) => a.active || a.balance !== 0);
@@ -141,6 +146,24 @@ export default async function DashboardPage() {
           {topExpenses.length === 0 ? <EmptyState>Sem despesas pagas neste mês.</EmptyState> : <HBars items={topExpenses.map((c) => ({ label: c.category, value: c.amount, pct: c.pct }))} />}
         </Card>
       </div>
+
+      {/* Caixa projetado */}
+      <Card className="mt-4">
+        <CardTitle aside={<Link href="/gestao/recorrentes" className="text-sm font-bold text-brand-green hover:underline">Recorrentes</Link>}>Caixa nos próximos {CASH_DAYS} dias</CardTitle>
+        {cash.goesNegative && (
+          <p role="alert" className="mb-3 flex gap-2 rounded-xl bg-danger/10 px-3 py-2.5 text-sm font-semibold text-danger">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            O caixa pode ficar negativo em {formatDateShort(cash.firstNegative!)} (menor saldo: {formatBRL(cash.lowest.balance)} em {formatDateShort(cash.lowest.date)}).
+          </p>
+        )}
+        <CashflowChart points={cash.points} start={today} days={CASH_DAYS} />
+        <dl className="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
+          <div className="rounded-xl bg-brand-mist px-2 py-2.5"><dt className="text-[11px] font-semibold text-brand-graphite/60">Hoje</dt><dd className="num font-extrabold">{formatBRL(cash.start)}</dd></div>
+          <div className="rounded-xl bg-brand-mist px-2 py-2.5"><dt className="text-[11px] font-semibold text-brand-graphite/60">Menor saldo</dt><dd className={`num font-extrabold ${cash.lowest.balance < 0 ? "text-danger" : ""}`}>{formatBRL(cash.lowest.balance)}</dd></div>
+          <div className="rounded-xl bg-brand-mist px-2 py-2.5"><dt className="text-[11px] font-semibold text-brand-graphite/60">Em {CASH_DAYS} dias</dt><dd className={`num font-extrabold ${cash.end < 0 ? "text-danger" : ""}`}>{formatBRL(cash.end)}</dd></div>
+        </dl>
+        <p className="mt-2 text-xs text-brand-graphite/60">Saldo de hoje + contas a receber ({formatBRL(cash.totalIn)}) − contas a pagar ({formatBRL(cash.totalOut)}) e recorrentes dos próximos {CASH_DAYS} dias. Atrasadas contam como de hoje.</p>
+      </Card>
 
       {/* Vencimentos */}
       <div className="mt-4 grid gap-4 md:grid-cols-2">

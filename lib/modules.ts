@@ -1,7 +1,7 @@
 // Fonte única do menu e da tela inicial: cada módulo (grupo) do sistema e suas páginas.
 // Para criar uma área nova (ex.: Clientes, Frota), basta acrescentar um grupo aqui.
 import {
-  ClipboardList, UserRound, ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, Repeat, ShieldCheck, Truck, Database, ExternalLink, FileBarChart, FlaskConical,
+  ClipboardList, UserRound, ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, HeartPulse, History, Repeat, ShieldCheck, Truck, Database, ExternalLink, FileBarChart, FlaskConical,
   Globe, HelpCircle, Image as ImageIcon, KeyRound, Landmark, ListChecks, Megaphone, PiggyBank, Phone, Settings, Sprout,
   Users, Video, Wheat, Sparkles, type LucideIcon,
 } from "lucide-react";
@@ -63,8 +63,10 @@ export const MODULES: ModuleGroup[] = [
     id: "sistema", label: "Sistema", icon: Settings, blurb: "Cadastros, usuários, integrações de IA e backup.",
     items: [
       { href: "/gestao/cadastros", label: "Cadastros", icon: Settings, needs: "manage" },
+      { href: "/gestao/auditoria", label: "Trilha de auditoria", icon: History, needs: "manage" },
       { href: "/gestao/sistema/usuarios", label: "Usuários e acessos", icon: Users, needs: "admin" },
       { href: "/gestao/sistema/integracoes", label: "Integrações (IA e e-mail)", icon: KeyRound, needs: "admin" },
+      { href: "/gestao/sistema/saude", label: "Saúde do sistema", icon: HeartPulse, needs: "admin" },
       { href: "/gestao/sistema/backup", label: "Backup", icon: Database, needs: "admin" },
       { href: "https://vercel.com/nortedronesto-tech/norte-drones-sistema-geral", label: "Vercel", icon: ExternalLink, needs: "admin", external: true },
       { href: "https://github.com/nortedronesto-tech/Norte-Drones-Sistema-Geral", label: "GitHub", icon: ExternalLink, needs: "admin", external: true },

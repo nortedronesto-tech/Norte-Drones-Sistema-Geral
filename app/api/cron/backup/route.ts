@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendBackupEmail } from "@/lib/backup";
+import { recordHealth } from "@/lib/health-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -13,8 +14,10 @@ export async function GET(request: NextRequest) {
   }
   try {
     const result = await sendBackupEmail();
+    await recordHealth({ backup: { at: new Date().toISOString(), ok: true, by: "cron" } });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
+    await recordHealth({ backup: { at: new Date().toISOString(), ok: false, by: "cron", note: (err as Error).message } });
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 }

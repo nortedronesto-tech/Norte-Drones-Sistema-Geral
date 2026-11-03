@@ -8,7 +8,7 @@ DB=norte_test
 psql -q -d postgres -c "drop database if exists $DB" -c "create database $DB"
 for f in tests/stubs.sql migrations/0001_fase1_financeiro.sql migrations/0002_storage_receipts.sql seed.sql \
          tests/fixtures_users.sql migrations/0003_site_publico_admin.sql migrations/0004_hardening_funcoes.sql \
-         migrations/0005_niveis_de_acesso.sql migrations/0006_cofre_de_segredos.sql migrations/0007_receitas_calda.sql migrations/0008_conciliacao_bancaria.sql migrations/0009_fornecedores.sql migrations/0010_clientes_e_os.sql migrations/0011_ok_do_cliente_na_os.sql migrations/0012_nivel_operador.sql migrations/0013_checklist_pre_voo.sql migrations/0014_lancamentos_recorrentes.sql; do
+         migrations/0005_niveis_de_acesso.sql migrations/0006_cofre_de_segredos.sql migrations/0007_receitas_calda.sql migrations/0008_conciliacao_bancaria.sql migrations/0009_fornecedores.sql migrations/0010_clientes_e_os.sql migrations/0011_ok_do_cliente_na_os.sql migrations/0012_nivel_operador.sql migrations/0013_checklist_pre_voo.sql migrations/0014_lancamentos_recorrentes.sql migrations/0015_trilha_de_auditoria.sql; do
   psql -q -v ON_ERROR_STOP=1 -d $DB -f "$f"
 done
 psql -v ON_ERROR_STOP=1 -d $DB -f tests/tests.sql
@@ -22,4 +22,5 @@ psql -v ON_ERROR_STOP=1 -d $DB -f tests/os_ok.sql
 psql -v ON_ERROR_STOP=1 -d $DB -f tests/operador.sql
 psql -v ON_ERROR_STOP=1 -d $DB -f tests/preflight.sql
 psql -v ON_ERROR_STOP=1 -d $DB -f tests/recorrentes.sql
+psql -v ON_ERROR_STOP=1 -d $DB -f tests/auditoria.sql
 psql -q -d postgres -c "drop database $DB"

@@ -14,7 +14,7 @@ const TABLES = [
 ] as const;
 
 // Tabelas das migrations mais novas: entram no backup se existirem (sem a migration, vêm vazias em vez de quebrar).
-const OPTIONAL_TABLES = ["suppliers", "clients", "service_orders", "recurring_transactions", "spray_recipes"] as const;
+const OPTIONAL_TABLES = ["suppliers", "clients", "service_orders", "recurring_transactions", "spray_recipes", "audit_log"] as const;
 
 type Row = Record<string, unknown>;
 

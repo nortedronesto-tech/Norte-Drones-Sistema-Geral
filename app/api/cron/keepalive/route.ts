@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/public";
-import { todayBR } from "@/lib/format";
-import { generateRecurring } from "@/lib/recurring-run";
-import { sendDueReminder } from "@/lib/reminder-run";
+import { runDailyJobs } from "@/lib/daily";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +21,6 @@ export async function GET(request: NextRequest) {
   // As tarefas abaixo nunca derrubam a rotina: cada uma informa o próprio resultado.
   let recurring: unknown = "sem chave de serviço";
   let reminder: unknown = "sem chave de serviço";
-  if (admin) {
-    const today = todayBR();
-    try { recurring = await generateRecurring(admin, today); } catch (e) { recurring = { error: e instanceof Error ? e.message : "falha" }; }
-    try { reminder = await sendDueReminder(admin, today); } catch (e) { reminder = { error: e instanceof Error ? e.message : "falha" }; }
-  }
+  if (admin) ({ recurring, reminder } = await runDailyJobs(admin));
   return NextResponse.json({ ok: true, at: new Date().toISOString(), recurring, reminder });
 }
