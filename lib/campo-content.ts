@@ -117,9 +117,10 @@ export const FAQ: Faq[] = [
 export const FAQ_CATEGORIES = [...new Set(FAQ.map((f) => f.cat))];
 
 // Seções do guia de campo (uma página por seção em /gestao/campo/[secao]).
-export type Secao = "pulverizacao" | "foliar" | "solidos" | "pragas" | "passo-a-passo" | "duvidas";
+export type Secao = "pre-voo" | "pulverizacao" | "foliar" | "solidos" | "pragas" | "passo-a-passo" | "duvidas";
 
 export const SECOES: { id: Secao; label: string }[] = [
+  { id: "pre-voo", label: "Pré-voo" },
   { id: "pulverizacao", label: "Pulverização" },
   { id: "foliar", label: "Foliar" },
   { id: "solidos", label: "Sólidos" },

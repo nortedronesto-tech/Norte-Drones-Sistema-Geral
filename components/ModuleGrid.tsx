@@ -35,7 +35,7 @@ function Head({ g }: { g: ModuleGroup }) {
  */
 export function ModuleGrid({ role }: { role: Role }) {
   const groups = modulesFor(role).filter((g) => g.id !== "relatorios");
-  const items = (g: ModuleGroup) => g.items.filter((i) => !i.external || g.id === "marketing").slice(0, 6);
+  const items = (g: ModuleGroup) => g.items.filter((i) => !i.external || g.id === "marketing").slice(0, 8);
   return (
     <section aria-label="Módulos" className="mb-5 grid gap-2.5 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
       {groups.map((g) => (

@@ -179,3 +179,52 @@ export async function setClientOk(id: string, on: boolean, date: string, note?: 
   refresh();
   return { ok: true };
 }
+
+/** OS abertas (para registrar o pré-voo numa delas). */
+export async function listOpenOS(): Promise<ActionResult<{ id: string; number: number; label: string }[]>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("service_orders")
+    .select("id, number, farm, clients(name)")
+    .eq("status", "aberta")
+    .order("service_date", { ascending: false })
+    .limit(30);
+  if (error) return dbError(error);
+  const rows = (data ?? []) as unknown as { id: string; number: number; farm: string | null; clients: { name: string } | { name: string }[] | null }[];
+  return {
+    ok: true,
+    data: rows.map((r) => {
+      const c = Array.isArray(r.clients) ? r.clients[0]?.name : r.clients?.name;
+      return { id: r.id, number: r.number, label: `OS ${r.number} · ${c ?? "—"}${r.farm ? ` · ${r.farm}` : ""}` };
+    }),
+  };
+}
+
+const preflightSchema = z.object({
+  id: z.uuid(),
+  checks: z.array(z.object({ id: z.string().max(40), ok: z.boolean() })).max(30),
+  wind_kmh: z.number().min(0).max(200).nullable(),
+  temp_c: z.number().min(-20).max(60).nullable(),
+  humidity_pct: z.number().min(0).max(100).nullable(),
+});
+
+/** Registra o resultado do pré-voo (checklist e clima) numa OS aberta. */
+export async function savePreflightToOS(input: z.input<typeof preflightSchema>): Promise<ActionResult> {
+  const parsed = preflightSchema.safeParse(input);
+  if (!parsed.success) return fail("Dados inválidos");
+  const { id, checks, wind_kmh, temp_c, humidity_pct } = parsed.data;
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("service_orders")
+    .update({ preflight: checks.length ? checks : null, wind_kmh, temp_c, humidity_pct })
+    .eq("id", id)
+    .eq("status", "aberta")
+    .select("id");
+  if (error) {
+    if (error.code === "42703" || error.code === "PGRST204") return fail("Registro do pré-voo ainda não foi ativado (falta rodar a migration 0013 no Supabase).");
+    return dbError(error);
+  }
+  if (!data?.length) return fail("Só dá para registrar numa OS aberta.");
+  refresh();
+  return { ok: true };
+}

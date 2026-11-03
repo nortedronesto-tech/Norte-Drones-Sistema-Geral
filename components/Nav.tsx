@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Camera, ClipboardList, ExternalLink, FileBarChart, House, LayoutGrid, ListChecks, LogOut, Sprout, X, type LucideIcon } from "lucide-react";
+import { Camera, ClipboardList, ShieldCheck, ExternalLink, FileBarChart, House, LayoutGrid, ListChecks, LogOut, Sprout, X, type LucideIcon } from "lucide-react";
 import { signOut } from "@/app/gestao/actions";
 import type { Role } from "@/lib/access";
 import { MODULES, modulesFor, type ModuleItem } from "@/lib/modules";
@@ -112,7 +112,7 @@ export function Nav({ userName, email, role }: { userName: string; email: string
             </span>
           </Link>
         ) : <Tab href="/gestao/relatorios" label="Relatórios" icon={FileBarChart} path={path} />}
-        <Tab href="/gestao/campo/pulverizacao" label="Campo" icon={Sprout} path={path} match="/gestao/campo" />
+        {isOp ? <Tab href="/gestao/campo/pre-voo" label="Pré-voo" icon={ShieldCheck} path={path} match="/gestao/campo/pre-voo" /> : <Tab href="/gestao/campo/pulverizacao" label="Campo" icon={Sprout} path={path} match="/gestao/campo" />}
         <button type="button" onClick={() => setOpen(true)} aria-label="Abrir menu completo"
           className="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold text-brand-graphite/60">
           <LayoutGrid className="size-5" aria-hidden /> Menu

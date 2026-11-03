@@ -56,8 +56,8 @@ function getPosition(): Promise<{ lat: number; lon: number; label: string }> {
 }
 
 /** Botão "Ver clima agora": pega a previsão do local (ou de Palmas-TO) e mostra o semáforo. */
-export function ClimaWidget({ onFill, title = "Clima para aplicar" }: {
-  onFill?: (v: { wind: number | null; temp: number | null; hum: number | null }) => void; title?: string;
+export function ClimaWidget({ onFill, onResult, title = "Clima para aplicar" }: {
+  onFill?: (v: { wind: number | null; temp: number | null; hum: number | null }) => void; onResult?: (input: ClimaInput) => void; title?: string;
 }) {
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [data, setData] = useState<ClimaInput | null>(null);
@@ -78,6 +78,7 @@ export function ClimaWidget({ onFill, title = "Clima para aplicar" }: {
       const parsed = parseOpenMeteo(await res.json());
       if (!parsed) throw new Error("vazio");
       setData(parsed); setPlace(pos.label); setState("done");
+      onResult?.(parsed);
       const r1 = (v: number | null | undefined) => (v == null ? null : Math.round(v * 10) / 10);
       onFill?.({ wind: r1(parsed.windKmh), temp: r1(parsed.tempC), hum: parsed.humidityPct == null ? null : Math.round(parsed.humidityPct) });
     } catch {

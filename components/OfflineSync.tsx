@@ -7,7 +7,7 @@ import { ensureClient, saveOS, type OsInput } from "@/app/gestao/os/actions";
 import { flushOutbox, readOutbox, removeFromOutbox, retryItem, type KV, type OutboxItem } from "@/lib/outbox";
 
 // Páginas de campo que o service worker guarda para abrir sem sinal (nada de financeiro).
-const WARM_PAGES = ["/gestao/os/nova", "/gestao/campo/pulverizacao", "/gestao/campo/foliar", "/gestao/campo/solidos", "/gestao/campo/pragas", "/gestao/campo/passo-a-passo", "/gestao/campo/duvidas"];
+const WARM_PAGES = ["/gestao/os/nova", "/gestao/campo/pre-voo", "/gestao/campo/pulverizacao", "/gestao/campo/foliar", "/gestao/campo/solidos", "/gestao/campo/pragas", "/gestao/campo/passo-a-passo", "/gestao/campo/duvidas"];
 const WARM_KEY = "norte:warm";
 
 function storage(): KV {

@@ -8,7 +8,7 @@ import { AGROFIT, PRAGAS, PRAGAS_FONTE, PRAGA_GRUPOS } from "@/lib/campo-pragas"
 import { DISCLAIMER, EMERGENCY, FAQ, FAQ_CATEGORIES, SECOES, SOURCES, STEPS, type Secao } from "@/lib/campo-content";
 import { saveRecipe, deleteRecipe } from "@/app/gestao/campo/actions";
 import { btn, Card, CardTitle, EmptyState, FormError, inputClass, labelClass } from "@/components/ui";
-import { ClimaWidget } from "@/components/ClimaWidget";
+import { PreVoo } from "@/components/PreVoo";
 
 export type SavedRecipe = {
   id: string;
@@ -66,6 +66,7 @@ export function CampoGuide({ secao, recipes, recipesEnabled, canWrite, canManage
         <CaldaCalculator key={secao} tipo={secao} recipes={recipes} recipesEnabled={recipesEnabled} canWrite={canWrite} canManage={canManage} />
       )}
       {secao === "solidos" && <SolidosCalculator />}
+      {secao === "pre-voo" && <PreVoo />}
       {secao === "pragas" && <Pragas />}
       {secao === "passo-a-passo" && <Steps />}
       {secao === "duvidas" && <Faq />}
@@ -132,7 +133,7 @@ function CaldaCalculator({ tipo, recipes, recipesEnabled, canWrite, canManage }:
   return (
     <div className="space-y-4">
       <p className="rounded-xl bg-brand-green/10 px-3 py-2.5 text-xs font-medium leading-snug text-brand-dark md:px-4 md:py-3 md:text-sm">{TIPO_INFO[tipo].dica}</p>
-      <Card><ClimaWidget title="Ver o clima antes de aplicar" /></Card>
+      <Link href="/gestao/campo/pre-voo" className="flex items-center justify-between rounded-xl border border-brand-green/30 bg-white px-4 py-3 text-sm font-bold text-brand-green hover:bg-black/[0.02]">Antes de aplicar: conferir clima e checklist <span aria-hidden>→</span></Link>
       <Card>
         <CardTitle aside={
           <button type="button" className="text-sm font-bold text-brand-green underline"

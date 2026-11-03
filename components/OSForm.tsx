@@ -8,8 +8,6 @@ import { FORMULATIONS, type DoseUnit, type Formulation, type Product } from "@/l
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
 import { DEFAULT_PRICE_PER_HA, osTotal } from "@/lib/os";
 import { enqueue, type KV } from "@/lib/outbox";
-import { PREFLIGHT_ITEMS, toStored } from "@/lib/preflight";
-import { ClimaSemaforo, ClimaWidget } from "./ClimaWidget";
 import { btn, FormError, inputClass, labelClass } from "./ui";
 
 export type OsClient = { id: string; name: string; price_per_ha: number | null };
@@ -57,8 +55,6 @@ export function OSForm({ clients: initialClients, initial, defaultClientId, hide
   const [temp, setTemp] = useState(txt(initial?.temp_c));
   const [hum, setHum] = useState(txt(initial?.humidity_pct));
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [checks, setChecks] = useState<Set<string>>(new Set((initial?.preflight ?? []).filter((c) => c.ok).map((c) => c.id)));
-  const [climaFetched, setClimaFetched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queued, setQueued] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -111,8 +107,6 @@ export function OSForm({ clients: initialClients, initial, defaultClientId, hide
     const body = {
       client_id: clientId, farm, service_date: date, area_ha: areaN, price_per_ha: priceN, crop, target, drone, operator_name: operator,
       rate_l_ha: optNum(rate), tank_l: optNum(tank), products, wind_kmh: optNum(wind), temp_c: optNum(temp), humidity_pct: optNum(hum), notes,
-      // só envia o checklist se foi marcado (ou se já havia um): evita mexer na coluna à toa
-      ...(checks.size > 0 || (initial?.preflight?.length ?? 0) > 0 ? { preflight: toStored(checks) } : {}),
     };
     const newKey = initial ? undefined : crypto.randomUUID();
     // Sem sinal: guarda no aparelho e envia sozinho quando a internet voltar.
@@ -228,33 +222,14 @@ export function OSForm({ clients: initialClients, initial, defaultClientId, hide
         </div>
       </details>
 
-      <section className="space-y-3">
-        <p className={labelClass}>Clima na aplicação <span className="font-normal text-brand-graphite/50">(opcional)</span></p>
-        <ClimaWidget title="Pegar o clima agora" onFill={(v) => { setClimaFetched(true); if (v.wind != null) setWind(txt(v.wind)); if (v.temp != null) setTemp(txt(v.temp)); if (v.hum != null) setHum(txt(v.hum)); }} />
-        <div className="grid grid-cols-3 gap-3">
+      <details className="rounded-xl border border-black/10 bg-white px-4 py-3" open={!!(wind || temp || hum)}>
+        <summary className="cursor-pointer text-sm font-bold">Condições do tempo <span className="font-normal text-brand-graphite/60">(opcional)</span></summary>
+        <div className="mt-3 grid grid-cols-3 gap-3">
           <input aria-label="Vento (km/h)" inputMode="decimal" className={inputClass} placeholder="Vento km/h" value={wind} onChange={(e) => setWind(e.target.value)} />
           <input aria-label="Temperatura (°C)" inputMode="decimal" className={inputClass} placeholder="Temp. °C" value={temp} onChange={(e) => setTemp(e.target.value)} />
           <input aria-label="Umidade (%)" inputMode="decimal" className={inputClass} placeholder="Umidade %" value={hum} onChange={(e) => setHum(e.target.value)} />
         </div>
-        {!climaFetched && <ClimaSemaforo input={{ windKmh: optNum(wind), tempC: optNum(temp), humidityPct: optNum(hum) }} />}
-      </section>
-
-      <details className="rounded-xl border border-black/10 bg-white px-4 py-3" open={checks.size > 0}>
-        <summary className="cursor-pointer text-sm font-bold">Checklist de pré-voo <span className="font-normal text-brand-graphite/60">({checks.size}/{PREFLIGHT_ITEMS.length})</span></summary>
-        <ul className="mt-3 space-y-1">
-          {PREFLIGHT_ITEMS.map((i) => (
-            <li key={i.id}>
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg px-1 py-2 text-sm hover:bg-black/[0.03]">
-                <input type="checkbox" className="mt-0.5 size-5 shrink-0" checked={checks.has(i.id)}
-                  onChange={(e) => setChecks((c) => { const n = new Set(c); if (e.target.checked) n.add(i.id); else n.delete(i.id); return n; })} />
-                <span>{i.label}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-        <button type="button" className="mt-2 text-sm font-bold text-brand-green underline" onClick={() => setChecks(checks.size === PREFLIGHT_ITEMS.length ? new Set() : new Set(PREFLIGHT_ITEMS.map((i) => i.id)))}>
-          {checks.size === PREFLIGHT_ITEMS.length ? "Desmarcar tudo" : "Marcar tudo"}
-        </button>
+        <p className="mt-2 text-xs text-brand-graphite/60">Na hora de aplicar, use o <strong>Pré-voo</strong> (clima e checklist): ele pode registrar isso aqui para você.</p>
       </details>
 
       <div><label htmlFor="notes" className={labelClass}>Observações</label><textarea id="notes" rows={2} maxLength={1000} className={inputClass} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
