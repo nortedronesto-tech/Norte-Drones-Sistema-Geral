@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/format";
 import { btn, Card, CardTitle, EmptyState, PageHeader } from "@/components/ui";
 import { ModuleGrid } from "@/components/ModuleGrid";
+import { ClimaWidget } from "@/components/ClimaWidget";
+import { InstallApp } from "@/components/InstallApp";
 
 /** Início do Operador: o que ele precisa no campo (nova OS, calda, OS abertas), sem nada de financeiro. */
 export async function OperatorHome({ name }: { name: string }) {
@@ -20,10 +22,12 @@ export async function OperatorHome({ name }: { name: string }) {
   return (
     <>
       <PageHeader title={`Olá${name ? `, ${name.split(" ")[0]}` : ""}`} subtitle="O que você precisa no campo, em um toque." />
+      <InstallApp />
       <div className="mb-5 grid gap-3 sm:grid-cols-2">
         <Link href="/gestao/os/nova" className={`${btn.cta} py-5 text-lg`}><Plus className="size-6" aria-hidden /> Nova OS</Link>
         <Link href="/gestao/campo/pulverizacao" className={`${btn.primary} py-5 text-lg`}><Calculator className="size-6" aria-hidden /> Calculadora de calda</Link>
       </div>
+      <Card className="mb-5"><CardTitle>Clima agora</CardTitle><ClimaWidget title="Ver o clima para aplicar" /></Card>
       <Card className="mb-5">
         <CardTitle aside={<Link href="/gestao/os" className="text-sm font-bold text-brand-green hover:underline">Ver todas</Link>}>OS abertas</CardTitle>
         {rows.length === 0 ? <EmptyState>Nenhuma OS aberta. Toque em “Nova OS” para registrar uma aplicação.</EmptyState> : (

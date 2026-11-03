@@ -8,6 +8,7 @@ import { categoryTotals, dueBuckets, monthReport, monthlySeries, shiftMonth, typ
 import { HBars, MonthlyBars } from "@/components/charts";
 import { ModuleGrid } from "@/components/ModuleGrid";
 import { OperatorHome } from "@/components/OperatorHome";
+import { InstallApp } from "@/components/InstallApp";
 import { ACCOUNT_KIND_LABEL } from "@/lib/constants";
 import { btn, Card, CardTitle, EmptyState, Money, PageHeader, StatusBadge } from "@/components/ui";
 import type { PartnerTotals, Transaction } from "@/lib/types";
@@ -74,6 +75,7 @@ export default async function DashboardPage() {
         }
       />
 
+      <InstallApp />
       {access?.role && <ModuleGrid role={access.role} />}
 
       {/* Saldo total */}

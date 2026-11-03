@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Norte Drones — INSTALAÇÃO COMPLETA DO BANCO (banco NOVO, vazio). Rode UMA vez.
 -- Crie antes o login nortedronesto@gmail.com em Authentication → Users (Auto Confirm).
--- Ordem: 0001 financeiro · 0002 recibos · 0003 site/admin · 0004 segurança · seed · 0005 níveis de acesso · 0006 cofre de segredos · 0007 receitas de calda · 0008 conciliação bancária · 0009 fornecedores · 0010 clientes e OS · 0011 OK do cliente · 0012 nível Operador
+-- Ordem: 0001 financeiro · 0002 recibos · 0003 site/admin · 0004 segurança · seed · 0005 níveis de acesso · 0006 cofre de segredos · 0007 receitas de calda · 0008 conciliação bancária · 0009 fornecedores · 0010 clientes e OS · 0011 OK do cliente · 0012 nível Operador · 0013 checklist pré-voo
 -- Quem já rodou a versão anterior deste script deve rodar SÓ o arquivo 0005_niveis_de_acesso.sql.
 -- ============================================================================
 
@@ -878,3 +878,12 @@ end $$;
 drop trigger if exists os_operator_guard on public.service_orders;
 create trigger os_operator_guard before update on public.service_orders
   for each row execute function public.trg_os_operator_guard();
+
+-- >>>>>>>>>> supabase/migrations/0013_checklist_pre_voo.sql
+-- =====================================================================
+-- Norte Drones — checklist de pré-voo na OS
+-- Guarda quais itens de segurança foram conferidos antes de aplicar (lista de {id, ok}).
+-- Quem abre/edita a OS (inclusive o operador, enquanto aberta) preenche. Depende da 0010 e 0012.
+-- =====================================================================
+alter table public.service_orders
+  add column if not exists preflight jsonb check (preflight is null or jsonb_typeof(preflight) = 'array');

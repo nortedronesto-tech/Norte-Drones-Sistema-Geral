@@ -5,6 +5,7 @@ import { getAccountBalances } from "@/lib/data";
 import { formatBRL, formatDate, todayBR } from "@/lib/format";
 import { defaultDue, OS_STATUS_LABEL, osCalda, osText, osTotal, type OsData } from "@/lib/os";
 import { recipeText, type Product } from "@/lib/calda";
+import { preflightSummary, type PreflightCheck } from "@/lib/preflight";
 import { getSiteContent } from "@/lib/content-store";
 import { Card, CardTitle, PageHeader } from "@/components/ui";
 import { OSActions } from "@/components/OSActions";
@@ -30,6 +31,7 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
       id: o.id, client_id: o.client_id, farm: o.farm, service_date: o.service_date, area_ha: Number(o.area_ha), price_per_ha: Number(o.price_per_ha),
       crop: o.crop, target: o.target, drone: o.drone, operator_name: o.operator_name, rate_l_ha: n(o.rate_l_ha), tank_l: n(o.tank_l), products,
       wind_kmh: n(o.wind_kmh), temp_c: n(o.temp_c), humidity_pct: n(o.humidity_pct), notes: o.notes,
+      preflight: (o.preflight as PreflightCheck[] | null | undefined) ?? null,
     };
     return (
       <>
@@ -65,7 +67,7 @@ export default async function OsDetailPage({ params, searchParams }: { params: P
             {money && dl("Valor", `${data.areaHa.toLocaleString("pt-BR")} ha × ${formatBRL(data.pricePerHa)} = ${formatBRL(total)}`)}
             {dl("Cultura", data.crop)}{dl("Alvo / praga", data.target)}{dl("Drone", data.drone)}{dl("Operador", data.operator)}
             {dl("Clima", [data.windKmh != null && `vento ${data.windKmh} km/h`, data.tempC != null && `${data.tempC} °C`, data.humidityPct != null && `umidade ${data.humidityPct}%`].filter(Boolean).join(" · "))}
-            {dl("Observações", data.notes)}{dl("Autorização do cliente", data.clientOkAt ? `OK em ${formatDate(data.clientOkAt)}` : "ainda sem OK")}
+            {dl("Observações", data.notes)}{dl("Checklist de pré-voo", o.preflight ? `${preflightSummary(o.preflight as PreflightCheck[]).done}/${preflightSummary(o.preflight as PreflightCheck[]).total} itens conferidos` : null)}{dl("Autorização do cliente", data.clientOkAt ? `OK em ${formatDate(data.clientOkAt)}` : "ainda sem OK")}
           </dl>
         </Card>
         {products.length > 0 && (

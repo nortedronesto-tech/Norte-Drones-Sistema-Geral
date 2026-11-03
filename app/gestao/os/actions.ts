@@ -99,16 +99,18 @@ const osSchema = z.object({
   temp_c: z.number().min(-20).max(60).nullable().optional(),
   humidity_pct: z.number().min(0).max(100).nullable().optional(),
   notes: z.string().trim().max(1000).optional(),
+  preflight: z.array(z.object({ id: z.string().max(40), ok: z.boolean() })).max(30).nullable().optional(),
 });
 export type OsInput = z.input<typeof osSchema>;
 
 export async function saveOS(input: OsInput): Promise<ActionResult<{ id: string }>> {
   const parsed = osSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0].message);
-  const { id, new_id, farm, crop, target, drone, operator_name, notes, rate_l_ha, tank_l, wind_kmh, temp_c, humidity_pct, ...rest } = parsed.data;
+  const { id, new_id, farm, crop, target, drone, operator_name, notes, rate_l_ha, tank_l, wind_kmh, temp_c, humidity_pct, preflight, ...rest } = parsed.data;
   const fields = {
     ...rest, farm: farm || null, crop: crop || null, target: target || null, drone: drone || null, operator_name: operator_name || null,
     notes: notes || null, rate_l_ha: rate_l_ha ?? null, tank_l: tank_l ?? null, wind_kmh: wind_kmh ?? null, temp_c: temp_c ?? null, humidity_pct: humidity_pct ?? null,
+    ...(preflight !== undefined ? { preflight } : {}), // só mexe na coluna quando o checklist vem junto
   };
   const supabase = await createClient();
   if (id) {
