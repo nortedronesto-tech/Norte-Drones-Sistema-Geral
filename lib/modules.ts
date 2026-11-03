@@ -2,7 +2,7 @@
 // Para criar uma área nova (ex.: Clientes, Frota), basta acrescentar um grupo aqui.
 import {
   ClipboardList, UserRound, ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, HeartPulse, History, Repeat, ShieldCheck, Truck, Database, ExternalLink, FileBarChart, FlaskConical,
-  Globe, HelpCircle, Image as ImageIcon, KeyRound, Landmark, ListChecks, Megaphone, PiggyBank, Phone, Settings, Sprout,
+  Gauge, Globe, HelpCircle, Image as ImageIcon, KeyRound, Landmark, ListChecks, Megaphone, PiggyBank, Phone, Settings, Sprout,
   Users, Video, Wheat, Sparkles, type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/access";
@@ -56,8 +56,11 @@ export const MODULES: ModuleGroup[] = [
     ],
   },
   {
-    id: "relatorios", label: "Relatórios", icon: FileBarChart, blurb: "Resultado do mês, planilha e PDF.",
-    items: [{ href: "/gestao/relatorios", label: "Resultado mensal", icon: FileBarChart }],
+    id: "relatorios", label: "Relatórios", icon: FileBarChart, blurb: "Resultado do mês, planilha e PDF; custo por hectare e viabilidade.",
+    items: [
+      { href: "/gestao/relatorios", label: "Resultado mensal", icon: FileBarChart },
+      { href: "/gestao/viabilidade", label: "Viabilidade do serviço", icon: Gauge },
+    ],
   },
   {
     id: "sistema", label: "Sistema", icon: Settings, blurb: "Cadastros, usuários, integrações de IA e backup.",
