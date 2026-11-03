@@ -69,6 +69,47 @@ export async function createTransaction(input: TransactionInput): Promise<Action
   return { ok: true, data: { id: data.id } };
 }
 
+const editSchema = z.object({
+  id: z.uuid(),
+  amount: money,
+  account_id: z.uuid("Escolha a conta"),
+  category: z.string().min(1, "Escolha a categoria"),
+  description: z.string().trim().max(300).optional(),
+  date,
+  supplier_id: z.uuid().nullable().optional(),
+});
+export type EditTransactionInput = z.input<typeof editSchema>;
+
+/**
+ * Corrige um lançamento. Não troca tipo nem situação (para isso: marcar como pago / excluir e lançar de novo).
+ * Em lançamento pago, a data editada é a do pagamento. O rateio e a reserva de uma entrada paga se recalculam sozinhos
+ * (trigger do banco). Lançamento que já estava conciliado volta a "não conferido".
+ */
+export async function updateTransaction(input: EditTransactionInput): Promise<ActionResult> {
+  const parsed = editSchema.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0].message);
+  const v = parsed.data;
+  const supabase = await createClient();
+  const { data: cur, error: curErr } = await supabase.from("transactions").select("*").eq("id", v.id).maybeSingle();
+  if (curErr) return dbError(curErr);
+  if (!cur) return fail("Lançamento não encontrado");
+  const fields: Record<string, unknown> = {
+    amount: v.amount,
+    account_id: v.account_id,
+    category: v.category,
+    description: v.description || null,
+    date: v.date,
+  };
+  if (cur.status === "pago") fields.paid_at = v.date;
+  if (v.supplier_id !== undefined && cur.type === "saida") fields.supplier_id = v.supplier_id;
+  if (cur.reconciled_at) fields.reconciled_at = null;
+  const { data, error } = await supabase.from("transactions").update(fields).eq("id", v.id).select("id");
+  if (error) return dbError(error);
+  if (!data?.length) return fail("Seu nível de acesso não permite editar lançamentos.");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function markPaid(id: string, paidAt?: string): Promise<ActionResult> {
   if (!z.uuid().safeParse(id).success) return fail("Lançamento inválido");
   const supabase = await createClient();

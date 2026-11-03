@@ -59,6 +59,7 @@ export interface Transaction {
   receipt_path: string | null;
   created_at: string;
   supplier_id?: string | null;
+  reconciled_at?: string | null;
   bank_accounts?: { name: string } | null;
   suppliers?: { name: string } | null;
 }

@@ -13,13 +13,19 @@ const TABLES = [
   "user_access",
 ] as const;
 
+// Tabelas das migrations mais novas: entram no backup se existirem (sem a migration, vêm vazias em vez de quebrar).
+const OPTIONAL_TABLES = ["suppliers", "clients", "service_orders", "recurring_transactions", "spray_recipes"] as const;
+
 type Row = Record<string, unknown>;
 
 async function readAll(admin: NonNullable<ReturnType<typeof createAdminClient>>, table: string): Promise<Row[]> {
   const rows: Row[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await admin.from(table).select("*").range(from, from + 999);
-    if (error) throw new Error(`${table}: ${error.message}`);
+    if (error) {
+      if ((OPTIONAL_TABLES as readonly string[]).includes(table) && (error.code === "42P01" || error.code === "PGRST205")) return [];
+      throw new Error(`${table}: ${error.message}`);
+    }
     rows.push(...((data ?? []) as Row[]));
     if (!data || data.length < 1000) break;
   }
@@ -37,7 +43,8 @@ export async function buildBackup() {
   if (!admin) throw new Error("Falta a SUPABASE_SERVICE_ROLE_KEY na Vercel.");
 
   const data: Record<string, Row[]> = {};
-  for (const t of TABLES) data[t] = await readAll(admin, t);
+  const ALL = [...TABLES, ...OPTIONAL_TABLES] as const;
+  for (const t of ALL) data[t] = await readAll(admin, t);
 
   const accountName = new Map(data.bank_accounts.map((a) => [a.id, a.name]));
   const header = ["data", "tipo", "valor", "conta", "categoria", "descricao", "situacao", "pago_em", "foto"];
@@ -49,7 +56,7 @@ export async function buildBackup() {
     ),
   );
 
-  const counts = Object.fromEntries(TABLES.map((t) => [t, data[t].length]));
+  const counts = Object.fromEntries(ALL.map((t) => [t, data[t].length]));
   const generatedAt = new Date().toISOString();
   return {
     generatedAt,

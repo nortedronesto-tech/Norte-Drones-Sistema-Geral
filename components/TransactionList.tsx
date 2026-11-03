@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCircle2, Image as ImageIcon, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { deleteTransaction, markPaid } from "@/app/gestao/actions";
 import { formatBRL, formatDate } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
@@ -65,13 +66,18 @@ export function TransactionList({ rows, receiptUrls, canWrite = true }: { rows: 
                     <ImageIcon className="size-4" aria-hidden /> Ver foto
                   </a>
                 )}
+                {canWrite && (
+                  <Link href={`/gestao/lancamentos/${t.id}/editar`} className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-black/[0.05] px-3 py-1.5 text-sm font-semibold hover:bg-black/[0.08]" aria-label="Editar lançamento">
+                    <Pencil className="size-4" aria-hidden /> Editar
+                  </Link>
+                )}
                 {canWrite && <button
                   disabled={busy}
                   onClick={() => {
                     const extra = t.type === "entrada" && t.status === "pago" ? " O rateio e a retenção da reserva dela também serão desfeitos." : "";
                     if (confirm(`Excluir este lançamento de ${formatBRL(t.amount)}?${extra}`)) run(t.id, () => deleteTransaction(t.id));
                   }}
-                  className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-danger/80 hover:bg-danger/5"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-danger/80 hover:bg-danger/5"
                   aria-label="Excluir lançamento"
                 >
                   <Trash2 className="size-4" aria-hidden />
