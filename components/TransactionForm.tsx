@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createTransaction } from "@/app/gestao/actions";
 import { categoriesFor } from "@/lib/constants";
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
 import { previewSplit } from "@/lib/split";
-import { removeReceipt, uploadReceipt } from "@/lib/receipt-upload";
+import { submitTransaction } from "@/lib/offline-finance";
 import type { ScanResult } from "@/lib/receipt-scan";
 import { ReceiptCapture } from "./ReceiptCapture";
 import { VoiceEntry } from "./VoiceEntry";
@@ -28,6 +27,7 @@ export function TransactionForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [queuedMsg, setQueuedMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [type, setType] = useState<TxType>("entrada");
@@ -80,19 +80,20 @@ export function TransactionForm({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setQueuedMsg(null);
     if (!amount || amount <= 0) return setError("Informe um valor maior que zero.");
     if (!accountId) return setError("Escolha a conta.");
     startTransition(async () => {
-      let receiptPath: string | undefined;
-      try {
-        if (file) receiptPath = await uploadReceipt(file, date);
-      } catch (err) {
-        return setError(err instanceof Error ? err.message : "Não foi possível enviar a foto.");
-      }
-      const res = await createTransaction({ type, amount, account_id: accountId, category, description, status, date, receipt_path: receiptPath, supplier_id: type === "saida" && supplierId ? supplierId : undefined });
-      if (!res.ok) {
-        if (receiptPath) await removeReceipt(receiptPath); // não deixa foto órfã
-        return setError(res.error);
+      const res = await submitTransaction(
+        { type, amount, account_id: accountId, category, description, status, date, supplier_id: type === "saida" && supplierId ? supplierId : undefined },
+        file,
+      );
+      if (res.mode === "rejected") return setError(res.error);
+      if (res.mode === "queued") {
+        // sem sinal: fica guardado no aparelho; limpa o formulário para o próximo lançamento
+        setQueuedMsg(`${formatBRL(amount)} em ${category} guardado neste aparelho${file ? " com a foto" : ""}. Vai sozinho quando o sinal voltar.`);
+        setAmountText(""); setDescription(""); setFile(null);
+        return;
       }
       router.push("/gestao/lancamentos");
     });
@@ -175,6 +176,12 @@ export function TransactionForm({
       )}
 
       <FormError message={error} />
+      {queuedMsg && (
+        <div role="status" className="rounded-xl border border-brand-green/30 bg-brand-green/10 p-3 text-sm text-brand-graphite">
+          <p className="font-bold">Guardado no aparelho</p>
+          <p>{queuedMsg}</p>
+        </div>
+      )}
       <div className="flex gap-3">
         <button type="submit" disabled={pending} className={`${btn.primary} flex-1`}>{pending ? (file ? "Enviando foto e salvando…" : "Salvando…") : "Salvar lançamento"}</button>
         <button type="button" onClick={() => router.back()} className={btn.ghost}>Cancelar</button>

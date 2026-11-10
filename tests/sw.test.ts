@@ -77,15 +77,26 @@ test("Nova OS e todas as seções do Campo são guardáveis", async () => {
   }
 });
 
-test("financeiro, início e relatórios NUNCA ficam guardados", async () => {
+test("financeiro do dia a dia fica guardado; relatórios, clientes e OS de terceiros não", async () => {
   const env = setup({ mode: "ok" });
   await env.install();
-  for (const p of ["/gestao", "/gestao/lancamentos", "/gestao/contas-a-receber", "/gestao/relatorios", "/gestao/conciliacao", "/gestao/os", "/gestao/os/abc-123", "/gestao/clientes"]) await env.run(p);
+  const keep = ["/gestao", "/gestao/lancamentos", "/gestao/lancamentos/novo", "/gestao/despesa-foto", "/gestao/contas-a-pagar", "/gestao/contas-a-receber", "/gestao/reserva", "/gestao/recibos", "/gestao/auditoria"];
+  const skip = ["/gestao/relatorios", "/gestao/conciliacao", "/gestao/os", "/gestao/os/abc-123", "/gestao/clientes", "/gestao/lancamentos/abc-123/editar"];
+  for (const p of [...keep, ...skip]) await env.run(p);
   env.net.mode = "down";
-  for (const p of ["/gestao", "/gestao/lancamentos", "/gestao/contas-a-receber", "/gestao/relatorios", "/gestao/conciliacao", "/gestao/os", "/gestao/os/abc-123", "/gestao/clientes"]) {
-    assert.equal(await env.run(p), "static:/offline.html", p);
-  }
-  assert.ok(![...env.stores.get("norte-pages-v2")?.keys() ?? []].some((k) => /lancamentos|relatorios|clientes|contas/.test(k)));
+  for (const p of keep) assert.equal(await env.run(p), `net:${p}`, p);
+  for (const p of skip) assert.equal(await env.run(p), "static:/offline.html", p);
+});
+
+test("ao sair (/login) somem as páginas e as fotos de recibo; o cache de recibos sobrevive a atualização do SW", async () => {
+  const env = setup({ mode: "ok" });
+  await env.install();
+  await env.run("/gestao/lancamentos");
+  (await (async () => { env.stores.set("norte-receipts-v1", new Map([["x", new Response("foto")]])); return 0; })());
+  assert.ok(env.stores.has("norte-pages-v3") && env.stores.has("norte-receipts-v1"));
+  await env.run("/login");
+  assert.ok(!env.stores.has("norte-pages-v3"));
+  assert.ok(!env.stores.has("norte-receipts-v1"));
 });
 
 test("não guarda redirecionamento para o login nem erro do servidor", async () => {
@@ -122,7 +133,7 @@ test("abrir /login apaga as páginas guardadas (sair do sistema)", async () => {
   const env = setup({ mode: "ok" });
   await env.install();
   await env.run("/gestao/campo/pulverizacao");
-  assert.ok(env.stores.has("norte-pages-v2"));
+  assert.ok(env.stores.has("norte-pages-v3"));
   await env.run("/login");
-  assert.ok(!env.stores.has("norte-pages-v2"));
+  assert.ok(!env.stores.has("norte-pages-v3"));
 });

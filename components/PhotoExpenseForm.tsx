@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
-import { createTransaction } from "@/app/gestao/actions";
-import { removeReceipt, uploadReceipt } from "@/lib/receipt-upload";
+import { submitTransaction } from "@/lib/offline-finance";
 import type { ScanResult } from "@/lib/receipt-scan";
 import { ReceiptCapture } from "./ReceiptCapture";
 import { VoiceEntry } from "./VoiceEntry";
@@ -34,7 +33,7 @@ export function PhotoExpenseForm({ accounts, suppliers = [] }: { accounts: Accou
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState<"idle" | "compressing" | "uploading" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<{ queued: boolean; text: string } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
@@ -63,32 +62,20 @@ export function PhotoExpenseForm({ accounts, suppliers = [] }: { accounts: Accou
     if (!amount || amount <= 0) return setError("Informe o valor da despesa.");
     if (!accountId) return setError("Escolha a conta.");
 
-    let receiptPath: string | undefined;
     try {
-      if (file) {
-        setBusy("uploading");
-        receiptPath = await uploadReceipt(file, date);
-      }
       setBusy("saving");
-      const res = await createTransaction({
-        type: "saida",
-        amount,
-        account_id: accountId,
-        category,
-        description,
-        status: paid ? "pago" : "a_pagar",
-        date,
-        receipt_path: receiptPath,
-        supplier_id: supplierId || undefined,
-      });
-      if (!res.ok) {
-        // não deixa foto órfã no bucket se o lançamento falhou
-        if (receiptPath) await removeReceipt(receiptPath);
-        throw new Error(res.error);
-      }
+      const res = await submitTransaction(
+        { type: "saida", amount, account_id: accountId, category, description, status: paid ? "pago" : "a_pagar", date, supplier_id: supplierId || undefined },
+        file,
+      );
+      if (res.mode === "rejected") throw new Error(res.error);
       writeLS(LS_ACCOUNT, accountId);
       writeLS(LS_CATEGORY, category);
-      setDone(`${formatBRL(amount)} em ${category} lançado${file ? " com foto" : " (sem foto)"}.`);
+      setDone(
+        res.mode === "queued"
+          ? { queued: true, text: `${formatBRL(amount)} em ${category} guardado neste aparelho${file ? " com a foto" : ""}. Vai sozinho quando o sinal voltar.` }
+          : { queued: false, text: `${formatBRL(amount)} em ${category} lançado${file ? " com foto" : " (sem foto)"}.` },
+      );
       setAmountText("");
       setDescription("");
       setFile(null);
@@ -123,8 +110,8 @@ export function PhotoExpenseForm({ accounts, suppliers = [] }: { accounts: Accou
         <div role="status" className="flex items-start gap-3 rounded-xl border border-brand-green/30 bg-brand-green/10 px-4 py-3 text-sm font-medium text-brand-dark">
           <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-brand-green" aria-hidden />
           <div>
-            <p className="font-bold">Despesa lançada</p>
-            <p>{done} <Link href="/gestao/lancamentos" className="font-bold underline">Ver lançamentos</Link></p>
+            <p className="font-bold">{done.queued ? "Despesa guardada no aparelho" : "Despesa lançada"}</p>
+            <p>{done.text} <Link href="/gestao/lancamentos" className="font-bold underline">Ver lançamentos</Link></p>
           </div>
         </div>
       )}

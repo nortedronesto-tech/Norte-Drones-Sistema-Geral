@@ -1,20 +1,23 @@
-/* Norte Gestão — service worker (v2: trabalho no campo sem sinal)
+/* Norte Gestão — service worker (v3: campo e financeiro sem sinal)
  *
  * - Guarda os arquivos estáticos (cache primeiro).
- * - Guarda SÓ as páginas de campo: "Nova OS" e o Campo (calculadoras, pragas, passo a passo, dúvidas).
- *   Elas abrem sem sinal. Páginas de financeiro, relatórios e o início NÃO são guardadas.
+ * - Guarda as páginas de campo (Nova OS, Campo) e as do financeiro usadas no dia a dia (início, lançamentos,
+ *   despesa por foto, contas, reserva, arquivo de recibos, auditoria). Abrem sem sinal, mostrando os valores
+ *   da última vez que o aparelho teve sinal. Só entram no cache páginas de quem está logado (nunca o redirecionamento
+ *   para o login).
  * - Com sinal fraco, tenta a rede por poucos segundos e, se não responder, usa a cópia guardada.
- * - Ao abrir /login (sair do sistema), apaga as páginas guardadas.
- * O que é feito sem sinal (OS) fica numa fila no aparelho e é enviado quando a internet volta.
+ * - Ao abrir /login (sair do sistema), apaga as páginas e as fotos de recibo guardadas no aparelho.
+ * O que é feito sem sinal (OS, lançamentos, recibos) fica numa fila no aparelho e é enviado quando a internet volta.
  */
-const VERSION = "v2";
+const VERSION = "v3";
 const STATIC_CACHE = `norte-static-${VERSION}`;
 const PAGES_CACHE = `norte-pages-${VERSION}`;
+const RECEIPTS_CACHE = "norte-receipts-v1"; // fotos de recibo (gerido por lib/receipt-cache.ts; não versionado junto)
 const OFFLINE_URL = "/offline.html";
 const NETWORK_TIMEOUT_MS = 4000;
 
-// Só estas páginas ficam guardadas (nada de dinheiro).
-const CACHEABLE_PAGE = /^\/gestao\/(os\/nova|campo\/[a-z-]+)\/?$/;
+// Só estas páginas ficam guardadas.
+const CACHEABLE_PAGE = /^\/gestao(\/(os\/nova|campo\/[a-z-]+|lancamentos|lancamentos\/novo|despesa-foto|contas-a-pagar|contas-a-receber|reserva|recibos|auditoria))?\/?$/;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,14 +32,18 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("norte-") && k !== STATIC_CACHE && k !== PAGES_CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("norte-") && k !== STATIC_CACHE && k !== PAGES_CACHE && k !== RECEIPTS_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
 
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "CLEAR_PAGES") event.waitUntil(caches.delete(PAGES_CACHE));
+  if (event.data && event.data.type === "CLEAR_PAGES") event.waitUntil(clearPrivate());
 });
+
+function clearPrivate() {
+  return Promise.all([caches.delete(PAGES_CACHE), caches.delete(RECEIPTS_CACHE)]);
+}
 
 function isHtmlRequest(req, url) {
   if (url.searchParams.has("_rsc") || req.headers.get("RSC") === "1") return false; // dados do Next, não a página
@@ -45,7 +52,7 @@ function isHtmlRequest(req, url) {
 
 async function pageStrategy(req) {
   const cache = await caches.open(PAGES_CACHE);
-  const fromCache = async () => (await cache.match(req, { ignoreSearch: true })) || (await caches.match(OFFLINE_URL));
+  const fromCache = async () => (await cache.match(req)) || (await cache.match(req, { ignoreSearch: true })) || (await caches.match(OFFLINE_URL));
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), NETWORK_TIMEOUT_MS);
@@ -67,10 +74,10 @@ self.addEventListener("fetch", (event) => {
 
   // Sair do sistema: apaga as páginas guardadas neste aparelho.
   if (req.mode === "navigate" && url.pathname === "/login") {
-    event.waitUntil(caches.delete(PAGES_CACHE));
+    event.waitUntil(clearPrivate());
   }
 
-  // Páginas de campo: rede com limite de tempo e, sem sinal, a cópia guardada.
+  // Páginas de campo e financeiro: rede com limite de tempo e, sem sinal, a cópia guardada.
   if (CACHEABLE_PAGE.test(url.pathname) && isHtmlRequest(req, url)) {
     event.respondWith(pageStrategy(req));
     return;

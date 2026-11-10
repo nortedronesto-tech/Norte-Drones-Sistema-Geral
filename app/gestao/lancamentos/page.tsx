@@ -6,6 +6,7 @@ import { monthKey, monthLabel, todayBR } from "@/lib/format";
 import { btn, Card, EmptyState, inputClass, PageHeader } from "@/components/ui";
 import { getAccess, requireFinanceAccess } from "@/lib/access";
 import { TransactionList } from "@/components/TransactionList";
+import { PendingTransactions } from "@/components/PendingTransactions";
 import type { Transaction } from "@/lib/types";
 
 export const metadata = { title: "Lançamentos" };
@@ -105,6 +106,8 @@ export default async function TransactionsPage({
         </select>
         <button className={`${btn.ghost} col-span-2 md:col-span-1`}>Filtrar</button>
       </form>
+
+      <PendingTransactions />
 
       <Card>
         {rows.length === 0 ? (

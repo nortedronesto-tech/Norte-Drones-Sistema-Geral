@@ -32,6 +32,8 @@ const transactionSchema = z
     date,
     receipt_path: z.string().max(300).optional(),
     supplier_id: z.uuid().optional(),
+    // Chave criada no aparelho: reenviar o mesmo lançamento (sinal ruim, fila offline) nunca duplica.
+    new_id: z.uuid().optional(),
   })
   .refine(
     (v) =>
@@ -51,6 +53,7 @@ export async function createTransaction(input: TransactionInput): Promise<Action
   const { data, error } = await supabase
     .from("transactions")
     .insert({
+      ...(v.new_id ? { id: v.new_id } : {}),
       type: v.type,
       amount: v.amount,
       account_id: v.account_id,
@@ -63,10 +66,34 @@ export async function createTransaction(input: TransactionInput): Promise<Action
     })
     .select("id")
     .single();
-  if (error) return dbError(error);
+  if (error) {
+    // Mesmo id já gravado: a primeira tentativa funcionou e só a resposta se perdeu. Conta como enviado.
+    if (error.code === "23505" && v.new_id) {
+      const { data: same } = await supabase.from("transactions").select("id").eq("id", v.new_id).maybeSingle();
+      if (same) { revalidatePath("/", "layout"); return { ok: true, data: { id: same.id } }; }
+    }
+    return dbError(error);
+  }
 
   revalidatePath("/", "layout");
   return { ok: true, data: { id: data.id } };
+}
+
+/** Anexa (ou troca) a foto do recibo de um lançamento que já existe. A foto já foi enviada ao bucket "receipts". */
+export async function attachReceipt(id: string, receiptPath: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(id).success) return fail("Lançamento inválido");
+  if (!/^\d{4}\/\d{2}\/[\w.-]+$/.test(receiptPath) || receiptPath.length > 300) return fail("Caminho da foto inválido");
+  const supabase = await createClient();
+  const { data: cur, error: curErr } = await supabase.from("transactions").select("receipt_path").eq("id", id).maybeSingle();
+  if (curErr) return dbError(curErr);
+  if (!cur) return fail("Lançamento não encontrado");
+  if (cur.receipt_path === receiptPath) return { ok: true }; // reenvio da fila: já está anexado
+  const { data, error } = await supabase.from("transactions").update({ receipt_path: receiptPath }).eq("id", id).select("id");
+  if (error) return dbError(error);
+  if (!data?.length) return fail("Seu nível de acesso não permite anexar recibo.");
+  // A foto antiga NÃO é apagada do bucket: a trilha de auditoria guarda o caminho dela e continua mostrando o recibo antigo.
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 const editSchema = z.object({
