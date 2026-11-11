@@ -11,7 +11,7 @@ import { flushOutbox, readOutbox, removeFromOutbox, retryItem, type KV, type Out
 // Páginas de campo que o service worker guarda para abrir sem sinal (nada de financeiro).
 const WARM_PAGES = ["/gestao/os/nova", "/gestao/campo/pre-voo", "/gestao/campo/pulverizacao", "/gestao/campo/foliar", "/gestao/campo/solidos", "/gestao/campo/pragas", "/gestao/campo/passo-a-passo", "/gestao/campo/duvidas"];
 // Páginas do financeiro (só para quem tem acesso a dinheiro): ficam no aparelho para abrir e consultar sem sinal.
-const FINANCE_PAGES = ["/gestao", "/gestao/lancamentos", "/gestao/lancamentos/novo", "/gestao/despesa-foto", "/gestao/contas-a-pagar", "/gestao/contas-a-receber", "/gestao/reserva", "/gestao/recibos"];
+const FINANCE_PAGES = ["/gestao", "/gestao/lancamentos", "/gestao/contas-a-pagar", "/gestao/contas-a-receber", "/gestao/reserva", "/gestao/recibos"];
 const WARM_KEY = "norte:warm";
 
 /** Baixa a página e também os arquivos (/_next/static) que ela usa, para abrir de verdade sem sinal. */

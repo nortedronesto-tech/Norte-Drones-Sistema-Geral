@@ -1,5 +1,6 @@
 "use client";
 
+import { Camera, Mic, PencilLine } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { categoriesFor } from "@/lib/constants";
@@ -19,22 +20,28 @@ export function TransactionForm({
   partners,
   reservePct,
   suppliers = [],
+  onDone,
+  onCancel,
 }: {
   accounts: AccountBalance[];
   partners: Partner[];
   reservePct: number;
   suppliers?: Supplier[];
+  /** dentro da janela de Lançamentos: chamado depois de salvar (em vez de trocar de página) */
+  onDone?: () => void;
+  onCancel?: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [queuedMsg, setQueuedMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [type, setType] = useState<TxType>("entrada");
+  const [mode, setMode] = useState<"foto" | "voz" | "manual">("foto");
+  const [type, setType] = useState<TxType>("saida");
   const [amountText, setAmountText] = useState("");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [supplierId, setSupplierId] = useState("");
-  const [category, setCategory] = useState(categoriesFor("entrada")[0]);
+  const [category, setCategory] = useState(categoriesFor("saida")[0]);
   const [description, setDescription] = useState("");
   const [paid, setPaid] = useState(true);
   const [date, setDate] = useState(todayBR());
@@ -95,7 +102,8 @@ export function TransactionForm({
         setAmountText(""); setDescription(""); setFile(null);
         return;
       }
-      router.push("/gestao/lancamentos");
+      if (onDone) onDone();
+      else router.push("/gestao/lancamentos");
     });
   }
 
@@ -108,9 +116,18 @@ export function TransactionForm({
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} label="Tem a foto da nota? (opcional)" />
+      <div role="group" aria-label="Como lançar" className="grid grid-cols-3 gap-2">
+        {([["foto", "Foto", Camera], ["voz", "Voz", Mic], ["manual", "Manual", PencilLine]] as const).map(([v, l, Icon]) => (
+          <button key={v} type="button" aria-pressed={mode === v} onClick={() => setMode(v)}
+            className={`flex flex-col items-center gap-1 rounded-xl px-3 py-3 text-sm font-bold transition ${mode === v ? "bg-brand-dark text-white" : "bg-black/[0.05] text-brand-graphite/80 hover:bg-black/[0.08]"}`}>
+            <Icon className="size-5" aria-hidden /> {l}
+          </button>
+        ))}
+      </div>
 
-      <VoiceEntry onParsed={applyScan} />
+      {mode === "foto" && <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} label="Foto do recibo (a IA lê e preenche)" />}
+      {mode === "voz" && <VoiceEntry onParsed={applyScan} />}
+      {mode !== "foto" && <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} scanEnabled={false} label="Anexar recibo (opcional)" />}
 
       <div className="flex gap-2" role="group" aria-label="Tipo de lançamento">
         <button type="button" onClick={() => changeType("entrada")} className={seg(type === "entrada", "in")} aria-pressed={type === "entrada"}>Entrada</button>
@@ -184,7 +201,7 @@ export function TransactionForm({
       )}
       <div className="flex gap-3">
         <button type="submit" disabled={pending} className={`${btn.primary} flex-1`}>{pending ? (file ? "Enviando foto e salvando…" : "Salvando…") : "Salvar lançamento"}</button>
-        <button type="button" onClick={() => router.back()} className={btn.ghost}>Cancelar</button>
+        <button type="button" onClick={() => (onCancel ? onCancel() : router.back())} className={btn.ghost}>Cancelar</button>
       </div>
     </form>
   );

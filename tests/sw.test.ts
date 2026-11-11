@@ -80,7 +80,7 @@ test("Nova OS e todas as seções do Campo são guardáveis", async () => {
 test("financeiro do dia a dia fica guardado; relatórios, clientes e OS de terceiros não", async () => {
   const env = setup({ mode: "ok" });
   await env.install();
-  const keep = ["/gestao", "/gestao/lancamentos", "/gestao/lancamentos/novo", "/gestao/despesa-foto", "/gestao/contas-a-pagar", "/gestao/contas-a-receber", "/gestao/reserva", "/gestao/recibos", "/gestao/auditoria"];
+  const keep = ["/gestao", "/gestao/lancamentos", "/gestao/contas-a-pagar", "/gestao/contas-a-receber", "/gestao/reserva", "/gestao/recibos", "/gestao/auditoria"];
   const skip = ["/gestao/relatorios", "/gestao/conciliacao", "/gestao/os", "/gestao/os/abc-123", "/gestao/clientes", "/gestao/lancamentos/abc-123/editar"];
   for (const p of [...keep, ...skip]) await env.run(p);
   env.net.mode = "down";

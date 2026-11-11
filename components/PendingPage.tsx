@@ -30,7 +30,7 @@ export async function PendingPage({ kind }: { kind: "pagar" | "receber" }) {
       <PageHeader
         title={nome}
         subtitle={kind === "pagar" ? "O que a Norte ainda precisa pagar, por vencimento." : "O que a Norte ainda tem para receber, por vencimento."}
-        action={canWrite ? <div className="hidden md:block"><Link href="/gestao/lancamentos/novo" className={btn.primary}>Novo lançamento</Link></div> : undefined}
+        action={canWrite ? <div className="hidden md:block"><Link href="/gestao/lancamentos?novo=1" className={btn.primary}>Novo lançamento</Link></div> : undefined}
       />
       <div className="mb-4 grid grid-cols-2 gap-3">
         <Card><p className="text-xs font-semibold text-brand-graphite/60">Total em aberto</p><p className="num mt-1 text-xl font-extrabold">{formatBRL(sum(rows.map((t) => t.amount)))}</p></Card>

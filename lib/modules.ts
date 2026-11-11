@@ -24,7 +24,6 @@ export const MODULES: ModuleGroup[] = [
     id: "financeiro", label: "Financeiro", icon: Landmark, blurb: "Lançamentos, fornecedores, contas, conciliação e reserva.",
     items: [
       { href: "/gestao/lancamentos", label: "Lançamentos", icon: ListChecks },
-      { href: "/gestao/despesa-foto", label: "Despesa com foto", icon: Camera, needs: "write" },
       { href: "/gestao/recibos", label: "Arquivo de recibos", icon: Paperclip },
       { href: "/gestao/contas-a-pagar", label: "Contas a pagar", icon: ArrowUpFromLine },
       { href: "/gestao/contas-a-receber", label: "Contas a receber", icon: ArrowDownToLine },

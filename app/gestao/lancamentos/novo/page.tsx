@@ -1,28 +1,6 @@
-import { getAccountBalances, getPartners, getReservePct, getSuppliers } from "@/lib/data";
-import { Card, EmptyState, PageHeader } from "@/components/ui";
-import { TransactionForm } from "@/components/TransactionForm";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getAccess } from "@/lib/access";
 
-export const metadata = { title: "Novo lançamento" };
-
-export default async function NewTransactionPage() {
-  const access = await getAccess();
-  if (!access?.canWrite) redirect("/gestao");
-  const [accounts, partners, reservePct, suppliers] = await Promise.all([getAccountBalances(), getPartners(), getReservePct(), getSuppliers()]);
-  const active = accounts.filter((a) => a.active);
-
-  return (
-    <>
-      <PageHeader title="Novo lançamento" subtitle="Entrada ou saída, paga ou pendente." />
-      <Card className="mx-auto max-w-2xl">
-        {active.length === 0 ? (
-          <EmptyState>Cadastre ao menos uma conta em <Link href="/gestao/cadastros" className="font-bold text-brand-green underline">Cadastros</Link> antes de lançar.</EmptyState>
-        ) : (
-          <TransactionForm accounts={active} partners={partners} reservePct={reservePct} suppliers={suppliers.filter((x) => x.active)} />
-        )}
-      </Card>
-    </>
-  );
+// Unificado: abre a janela "Novo lançamento" dentro de Lançamentos.
+export default function NewTransactionPage() {
+  redirect("/gestao/lancamentos?novo=1");
 }

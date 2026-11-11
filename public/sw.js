@@ -2,7 +2,7 @@
  *
  * - Guarda os arquivos estáticos (cache primeiro).
  * - Guarda as páginas de campo (Nova OS, Campo) e as do financeiro usadas no dia a dia (início, lançamentos,
- *   despesa por foto, contas, reserva, arquivo de recibos, auditoria). Abrem sem sinal, mostrando os valores
+ *   contas, reserva, arquivo de recibos, auditoria). Abrem sem sinal, mostrando os valores
  *   da última vez que o aparelho teve sinal. Só entram no cache páginas de quem está logado (nunca o redirecionamento
  *   para o login).
  * - Com sinal fraco, tenta a rede por poucos segundos e, se não responder, usa a cópia guardada.
@@ -17,7 +17,7 @@ const OFFLINE_URL = "/offline.html";
 const NETWORK_TIMEOUT_MS = 4000;
 
 // Só estas páginas ficam guardadas.
-const CACHEABLE_PAGE = /^\/gestao(\/(os\/nova|campo\/[a-z-]+|lancamentos|lancamentos\/novo|despesa-foto|contas-a-pagar|contas-a-receber|reserva|recibos|auditoria))?\/?$/;
+const CACHEABLE_PAGE = /^\/gestao(\/(os\/nova|campo\/[a-z-]+|lancamentos|contas-a-pagar|contas-a-receber|reserva|recibos|auditoria))?\/?$/;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
