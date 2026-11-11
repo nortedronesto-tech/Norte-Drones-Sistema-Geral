@@ -19,6 +19,13 @@ export async function PendingPage({ kind }: { kind: "pagar" | "receber" }) {
   const { data, error } = res;
   if (error) throw new Error(error.message);
   const rows = ((data ?? []) as unknown as Transaction[]).map((t) => ({ ...t, amount: Number(t.amount) }));
+  // links temporários (1h) dos anexos, para abrir o recibo direto na conta
+  const paths = rows.map((r) => r.receipt_path).filter((x): x is string => !!x);
+  const receiptUrls: Record<string, string> = {};
+  if (paths.length) {
+    const { data: signed } = await supabase.storage.from("receipts").createSignedUrls(paths, 3600);
+    signed?.forEach((s) => { if (s.path && s.signedUrl) receiptUrls[s.path] = s.signedUrl; });
+  }
   const today = todayBR();
   const overdue = rows.filter((t) => t.date < today);
   const rest = rows.filter((t) => t.date >= today);
@@ -43,13 +50,13 @@ export async function PendingPage({ kind }: { kind: "pagar" | "receber" }) {
           {overdue.length > 0 && (
             <Card className="border-danger/30">
               <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-danger">Atrasadas</h2>
-              <TransactionList rows={overdue} receiptUrls={{}} canWrite={canWrite} />
+              <TransactionList rows={overdue} receiptUrls={receiptUrls} canWrite={canWrite} />
             </Card>
           )}
           {rest.length > 0 && (
             <Card>
               <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-graphite/70">A vencer</h2>
-              <TransactionList rows={rest} receiptUrls={{}} canWrite={canWrite} />
+              <TransactionList rows={rest} receiptUrls={receiptUrls} canWrite={canWrite} />
             </Card>
           )}
         </div>

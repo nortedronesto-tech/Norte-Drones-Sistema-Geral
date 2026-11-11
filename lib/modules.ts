@@ -1,8 +1,8 @@
 // Fonte única do menu e da tela inicial: cada módulo (grupo) do sistema e suas páginas.
 // Para criar uma área nova (ex.: Clientes, Frota), basta acrescentar um grupo aqui.
 import {
-  ClipboardList, UserRound, ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, Camera, HeartPulse, History, Repeat, ShieldCheck, Truck, Database, ExternalLink, FileBarChart, FlaskConical,
-  Gauge, Globe, Paperclip, HelpCircle, Image as ImageIcon, KeyRound, Landmark, ListChecks, Megaphone, PiggyBank, Phone, Settings, Sprout,
+  ClipboardList, UserRound, ArrowDownToLine, ArrowUpFromLine, BookOpen, Calculator, Bug, HeartPulse, History, Repeat, ShieldCheck, Truck, Database, ExternalLink, FileBarChart, FlaskConical,
+  Gauge, Globe, HelpCircle, Image as ImageIcon, KeyRound, Landmark, ListChecks, Megaphone, PiggyBank, Phone, Settings, Sprout,
   Users, Video, Wheat, Sparkles, type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/access";
@@ -24,7 +24,6 @@ export const MODULES: ModuleGroup[] = [
     id: "financeiro", label: "Financeiro", icon: Landmark, blurb: "Lançamentos, fornecedores, contas, conciliação e reserva.",
     items: [
       { href: "/gestao/lancamentos", label: "Lançamentos", icon: ListChecks },
-      { href: "/gestao/recibos", label: "Arquivo de recibos", icon: Paperclip },
       { href: "/gestao/contas-a-pagar", label: "Contas a pagar", icon: ArrowUpFromLine },
       { href: "/gestao/contas-a-receber", label: "Contas a receber", icon: ArrowDownToLine },
       { href: "/gestao/recorrentes", label: "Lançamentos recorrentes", icon: Repeat },

@@ -175,7 +175,7 @@ export function ReceiptCapture({
       <p className="mt-1.5 text-xs text-brand-graphite/60">
         {scanEnabled
           ? "Tire a foto e o sistema preenche valor, data e categoria sozinho — é só conferir. Foto que o Mateus mandou no WhatsApp? Salve na galeria e escolha “Da galeria”."
-          : "A foto fica guardada junto com este lançamento (aparece no Arquivo de recibos e na auditoria)."}
+          : "A foto fica guardada junto com este lançamento (aparece no lançamento e na auditoria)."}
       </p>
     </div>
   );

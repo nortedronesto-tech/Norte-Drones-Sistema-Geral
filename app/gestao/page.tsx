@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Camera, FileBarChart, Plus, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, FileBarChart, Plus, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getAccess } from "@/lib/access";
 import { getAccountBalances, getPartners, getReservePct, sum } from "@/lib/data";
@@ -101,9 +101,8 @@ export default async function DashboardPage() {
 
       {/* Atalhos mobile */}
       {canWrite && (
-        <div className="mt-3 grid grid-cols-2 gap-3 md:hidden">
-          <Link href="/gestao/lancamentos?novo=1" className={btn.cta}><Camera className="size-5" aria-hidden /> Despesa com foto</Link>
-          <Link href="/gestao/lancamentos?novo=1" className={btn.ghost}><Plus className="size-5" aria-hidden /> Lançamento</Link>
+        <div className="mt-3 md:hidden">
+          <Link href="/gestao/lancamentos?novo=1" className={`${btn.cta} w-full`}><Plus className="size-5" aria-hidden /> Novo lançamento</Link>
         </div>
       )}
 

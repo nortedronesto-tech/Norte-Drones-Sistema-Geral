@@ -51,7 +51,7 @@ npm run dev
 
 ## Foto da nota com preenchimento automático
 
-Em **Despesa com foto** e em **Lançamentos → Novo lançamento** dá para tirar a foto (ou escolher da galeria). O sistema lê a nota e preenche valor, data, descrição, categoria (e entrada/saída) — o usuário só confere e salva. O aviso informa qual IA leu.
+Em **Lançamentos → Novo lançamento** dá para tirar a foto (ou escolher da galeria). O sistema lê a nota e preenche valor, data, descrição, categoria (e entrada/saída) — o usuário só confere e salva. O aviso informa qual IA leu.
 
 ### IA híbrida (várias chaves, troca automática)
 
