@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { CheckCircle2, Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
+import { CheckCircle2, Pencil, Trash2 } from "lucide-react";
 import { deleteTransaction, markPaid } from "@/app/gestao/actions";
 import { formatBRL, formatDate } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
+import { ReceiptLink } from "./ReceiptViewer";
 import { FormError, Money, StatusBadge } from "./ui";
 
 export function TransactionList({ rows, receiptUrls, canWrite = true }: { rows: Transaction[]; receiptUrls: Record<string, string>; canWrite?: boolean }) {
@@ -56,16 +57,7 @@ export function TransactionList({ rows, receiptUrls, canWrite = true }: { rows: 
                     {t.type === "entrada" ? "Marcar como recebido" : "Marcar como pago"}
                   </button>
                 )}
-                {receipt && (
-                  <a
-                    href={receipt}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-black/[0.05] px-3 py-1.5 text-sm font-semibold hover:bg-black/[0.08]"
-                  >
-                    <ImageIcon className="size-4" aria-hidden /> Ver foto
-                  </a>
-                )}
+                {receipt && t.receipt_path && <ReceiptLink path={t.receipt_path} url={receipt} />}
                 {canWrite && (
                   <Link href={`/gestao/lancamentos/${t.id}/editar`} className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-black/[0.05] px-3 py-1.5 text-sm font-semibold hover:bg-black/[0.08]" aria-label="Editar lançamento">
                     <Pencil className="size-4" aria-hidden /> Editar

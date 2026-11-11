@@ -42,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto max-w-5xl">{children}</div>
       </main>
       <ServiceWorkerRegister />
-      <OfflineSync />
+      <OfflineSync finance={access.role !== "operador"} />
     </div>
   );
 }

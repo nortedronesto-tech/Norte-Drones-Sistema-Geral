@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { createClient } from "@/lib/supabase/server";
 import { describeAudit, TABLE_LABEL, type AuditRow } from "@/lib/audit";
+import { ReceiptLink } from "@/components/ReceiptViewer";
 import { btn, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Trilha de auditoria" };
@@ -30,6 +31,21 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   }
   const all = (data ?? []) as unknown as Row[];
   const rows = all.slice(0, limite);
+  // fotos de recibo citadas nas linhas (o que foi lançado, trocado ou apagado): URLs assinadas por 1h
+  const pathsOf = (r: Row) => {
+    if (r.table_name !== "transactions") return [] as string[];
+    const out = new Set<string>();
+    for (const row of [r.new_row, r.old_row]) { const p = row?.receipt_path; if (typeof p === "string" && p) out.add(p); }
+    const ch = r.changes?.receipt_path;
+    for (const p of [ch?.de, ch?.para]) if (typeof p === "string" && p) out.add(p);
+    return [...out];
+  };
+  const urls: Record<string, string> = {};
+  const wanted = [...new Set(rows.flatMap(pathsOf))];
+  if (wanted.length) {
+    const { data: signed } = await supabase.storage.from("receipts").createSignedUrls(wanted, 3600);
+    signed?.forEach((x) => { if (x.path && x.signedUrl) urls[x.path] = x.signedUrl; });
+  }
   const more = new URLSearchParams({ ...(tabela && { tabela }), limite: String(limite + PAGE) });
 
   return (
@@ -52,6 +68,11 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                     <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold ${TONE[r.action]}`}>{r.action === "INSERT" ? "criou" : r.action === "UPDATE" ? "alterou" : "apagou"}</span>
                   </div>
                   {d.lines.length > 0 && <ul className="mt-1 space-y-0.5 text-sm text-brand-graphite/85">{d.lines.map((l, i) => <li key={i}>• {l}</li>)}</ul>}
+                  {pathsOf(r).length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-2">
+                      {pathsOf(r).map((p, n, arr) => urls[p] ? <ReceiptLink key={p} path={p} url={urls[p]} label={arr.length > 1 ? `Ver recibo ${n + 1}` : "Ver recibo"} /> : null)}
+                    </div>
+                  )}
                   <p className="mt-1 text-xs text-brand-graphite/55">{WHEN.format(new Date(r.at))} · {r.user_email ?? "Sistema (rotina automática)"}</p>
                 </li>
               );

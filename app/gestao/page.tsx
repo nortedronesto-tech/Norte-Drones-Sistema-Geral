@@ -72,7 +72,7 @@ export default async function DashboardPage() {
         action={
           canWrite ? (
             <div className="hidden md:block">
-              <Link href="/gestao/lancamentos/novo" className={btn.primary}>
+              <Link href="/gestao/lancamentos?novo=1" className={btn.primary}>
                 <Plus className="size-5" aria-hidden /> Novo lançamento
               </Link>
             </div>
@@ -102,8 +102,8 @@ export default async function DashboardPage() {
       {/* Atalhos mobile */}
       {canWrite && (
         <div className="mt-3 grid grid-cols-2 gap-3 md:hidden">
-          <Link href="/gestao/despesa-foto" className={btn.cta}><Camera className="size-5" aria-hidden /> Despesa com foto</Link>
-          <Link href="/gestao/lancamentos/novo" className={btn.ghost}><Plus className="size-5" aria-hidden /> Lançamento</Link>
+          <Link href="/gestao/lancamentos?novo=1" className={btn.cta}><Camera className="size-5" aria-hidden /> Despesa com foto</Link>
+          <Link href="/gestao/lancamentos?novo=1" className={btn.ghost}><Plus className="size-5" aria-hidden /> Lançamento</Link>
         </div>
       )}
 

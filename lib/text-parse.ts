@@ -93,6 +93,17 @@ function findAmount(original: string): Hit | null {
     else if (!hasMil && m[2]) continue; // "10 e 20 reais": ambíguo
     hits.push({ value: v, start: m.index!, end: m.index! + m[0].length, marked: true });
   }
+  // "89 reais e 90 centavos" / "89 reais e 90" / "89 e 90 centavos" → 89,90
+  for (const m of original.matchAll(/(\d[\d.]*)\s*(?:reais|real)?\s*e\s*(\d{1,2})\s*(centavos?)?(?!\d)/gi)) {
+    const withCoin = /reais|real/i.test(m[0]);
+    if (!withCoin && !m[3]) continue; // "150 e 50" sem moeda nem "centavos" é tratado mais abaixo
+    const a = parseBRNumber(m[1]);
+    if (a === null) continue;
+    const cents = Number(m[2]);
+    const v = Math.round((a + (m[2].length === 1 && !m[3] ? cents * 10 : cents) / 100) * 100) / 100;
+    for (let k = hits.length - 1; k >= 0; k--) if (hits[k].start >= m.index! && hits[k].end <= m.index! + m[0].length) hits.splice(k, 1);
+    hits.push({ value: v, start: m.index!, end: m.index! + m[0].length, marked: true });
+  }
   // "3 mil" sem moeda
   for (const m of original.matchAll(/(\d[\d.,]*)\s*mil\b(?:\s*e\s*(\d[\d.,]*))?/gi)) {
     const a = parseBRNumber(m[1]);
@@ -151,6 +162,12 @@ function findAmount(original: string): Hit | null {
   const withCents = nums.find((n) => /,\d{1,2}$/.test(original.slice(n.start, n.end)));
   if (withCents) return withCents;
   if (nums.length === 1) return nums[0];
+
+  // 3b) "150 e 50" (só dígitos, sem moeda): quem fala assim quer dizer 150,50
+  const loose = /(?<![\d/.,-])(\d{1,6})\s+e\s+(\d{2})(?![\d/,.-])/.exec(original);
+  if (loose && !NOT_AMOUNT_AFTER.test(strip(original.slice(loose.index + loose[0].length, loose.index + loose[0].length + 14)))) {
+    return { value: Number(loose[1]) + Number(loose[2]) / 100, start: loose.index, end: loose.index + loose[0].length, marked: false };
+  }
 
   // 4) "mil e quinhentos" sem moeda
   let best: Hit | null = null;

@@ -20,12 +20,15 @@ export function ReceiptCapture({
   onFile,
   onScan,
   label = "Foto da nota / comprovante",
+  scanEnabled = true,
 }: {
   file: File | null;
   previewUrl: string | null;
   onFile: (file: File | null) => void;
   onScan: (data: ScanResult) => string; // devolve o texto do aviso ("Preenchi valor e data…")
   label?: string;
+  /** false = só anexa a foto (não lê nem preenche nada) */
+  scanEnabled?: boolean;
 }) {
   const [scanning, setScanning] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -98,6 +101,12 @@ export function ReceiptCapture({
     if (id !== run.current) return; // trocou a foto no meio da conversão
     setConverting(false);
     onFile(f);
+    if (!scanEnabled) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      // a leitura (IA e no aparelho) precisa de internet; a foto fica anexada e vai junto com o lançamento
+      setNote({ kind: "warn", text: "Sem sinal: a foto ficou anexada, mas não consigo ler os dados agora. Preencha o valor e a categoria à mão." });
+      return;
+    }
     void scan(f);
   }
 
@@ -164,7 +173,9 @@ export function ReceiptCapture({
         </p>
       )}
       <p className="mt-1.5 text-xs text-brand-graphite/60">
-        Tire a foto e o sistema preenche valor, data e categoria sozinho — é só conferir. Foto que o Mateus mandou no WhatsApp? Salve na galeria e escolha “Da galeria”.
+        {scanEnabled
+          ? "Tire a foto e o sistema preenche valor, data e categoria sozinho — é só conferir. Foto que o Mateus mandou no WhatsApp? Salve na galeria e escolha “Da galeria”."
+          : "A foto fica guardada junto com este lançamento (aparece no Arquivo de recibos e na auditoria)."}
       </p>
     </div>
   );

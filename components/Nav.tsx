@@ -106,7 +106,7 @@ export function Nav({ userName, email, role }: { userName: string; email: string
         <Tab href="/gestao" label="Início" icon={House} path={path} />
         {isOp ? <Tab href="/gestao/os" label="OS" icon={ListChecks} path={path} match="/gestao/os" /> : <Tab href="/gestao/lancamentos" label="Lançar" icon={ListChecks} path={path} />}
         {canWrite ? (
-          <Link href={isOp ? "/gestao/os/nova" : "/gestao/despesa-foto"} aria-label={isOp ? "Nova OS" : "Despesa com foto"} className="relative flex justify-center">
+          <Link href={isOp ? "/gestao/os/nova" : "/gestao/lancamentos?novo=1"} aria-label={isOp ? "Nova OS" : "Novo lançamento"} className="relative flex justify-center">
             <span className="absolute -top-6 grid size-14 place-items-center rounded-full bg-brand-lime text-brand-dark shadow-lg ring-4 ring-brand-mist">
               {isOp ? <ClipboardList className="size-6" aria-hidden /> : <Camera className="size-6" aria-hidden />}
             </span>

@@ -38,7 +38,10 @@ export async function proxy(request: NextRequest) {
     url.search = `?next=${encodeURIComponent(pathname)}`;
     return NextResponse.redirect(url);
   }
-  if (signedIn && isLogin) {
+  // Só manda embora da tela de login quem tem sessão VÁLIDA no servidor. Um cookie vencido ou revogado ainda passa
+  // na checagem local (getClaims), mas o layout o trata como deslogado: sem esta conferência, /login e /gestao
+  // ficam mandando um para o outro ("mais de 20 redirecionamentos").
+  if (signedIn && isLogin && (await supabase.auth.getUser()).data.user) {
     const url = request.nextUrl.clone();
     url.pathname = "/gestao";
     url.search = "";

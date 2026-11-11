@@ -32,13 +32,16 @@ const transactionSchema = z
     date,
     receipt_path: z.string().max(300).optional(),
     supplier_id: z.uuid().optional(),
+    // Chave criada no aparelho: reenviar o mesmo lançamento (sinal ruim, fila offline) nunca duplica.
+    new_id: z.uuid().optional(),
   })
   .refine(
     (v) =>
       (v.type === "entrada" && v.status !== "a_pagar") ||
       (v.type === "saida" && v.status !== "a_receber"),
     { message: "Status incompatível com o tipo do lançamento" },
-  );
+  )
+  .refine((v) => !(v.status === "pago" && v.date > todayBR()), { message: "Lançamento já pago/recebido não pode ter data no futuro." });
 
 export type TransactionInput = z.input<typeof transactionSchema>;
 
@@ -51,6 +54,7 @@ export async function createTransaction(input: TransactionInput): Promise<Action
   const { data, error } = await supabase
     .from("transactions")
     .insert({
+      ...(v.new_id ? { id: v.new_id } : {}),
       type: v.type,
       amount: v.amount,
       account_id: v.account_id,
@@ -63,10 +67,47 @@ export async function createTransaction(input: TransactionInput): Promise<Action
     })
     .select("id")
     .single();
-  if (error) return dbError(error);
+  if (error) {
+    // Mesmo id já gravado: a primeira tentativa funcionou e só a resposta se perdeu. Conta como enviado.
+    if (error.code === "23505" && v.new_id) {
+      const { data: same } = await supabase.from("transactions").select("id").eq("id", v.new_id).maybeSingle();
+      if (same) { revalidatePath("/", "layout"); return { ok: true, data: { id: same.id } }; }
+    }
+    return dbError(error);
+  }
 
   revalidatePath("/", "layout");
   return { ok: true, data: { id: data.id } };
+}
+
+/** Lançamentos já gravados com o mesmo tipo, conta e valor, em até 3 dias da data: serve para avisar de repetição. */
+export async function findSimilarTransactions(input: { type: "entrada" | "saida"; amount: number; account_id: string; date: string }): Promise<{ date: string; description: string | null; status: string }[]> {
+  const parsed = z.object({ type: z.enum(["entrada", "saida"]), amount: money, account_id: z.uuid(), date }).safeParse(input);
+  if (!parsed.success) return [];
+  const v = parsed.data;
+  const shift = (n: number) => new Date(Date.parse(`${v.date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const supabase = await createClient();
+  const { data } = await supabase.from("transactions").select("date, description, status")
+    .eq("type", v.type).eq("account_id", v.account_id).eq("amount", v.amount)
+    .gte("date", shift(-3)).lte("date", shift(3)).order("date", { ascending: false }).limit(3);
+  return (data ?? []) as { date: string; description: string | null; status: string }[];
+}
+
+/** Anexa (ou troca) a foto do recibo de um lançamento que já existe. A foto já foi enviada ao bucket "receipts". */
+export async function attachReceipt(id: string, receiptPath: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(id).success) return fail("Lançamento inválido");
+  if (!/^\d{4}\/\d{2}\/[\w.-]+$/.test(receiptPath) || receiptPath.length > 300) return fail("Caminho da foto inválido");
+  const supabase = await createClient();
+  const { data: cur, error: curErr } = await supabase.from("transactions").select("receipt_path").eq("id", id).maybeSingle();
+  if (curErr) return dbError(curErr);
+  if (!cur) return fail("Lançamento não encontrado");
+  if (cur.receipt_path === receiptPath) return { ok: true }; // reenvio da fila: já está anexado
+  const { data, error } = await supabase.from("transactions").update({ receipt_path: receiptPath }).eq("id", id).select("id");
+  if (error) return dbError(error);
+  if (!data?.length) return fail("Seu nível de acesso não permite anexar recibo.");
+  // A foto antiga NÃO é apagada do bucket: a trilha de auditoria guarda o caminho dela e continua mostrando o recibo antigo.
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 const editSchema = z.object({
