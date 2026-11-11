@@ -40,7 +40,8 @@ const transactionSchema = z
       (v.type === "entrada" && v.status !== "a_pagar") ||
       (v.type === "saida" && v.status !== "a_receber"),
     { message: "Status incompatível com o tipo do lançamento" },
-  );
+  )
+  .refine((v) => !(v.status === "pago" && v.date > todayBR()), { message: "Lançamento já pago/recebido não pode ter data no futuro." });
 
 export type TransactionInput = z.input<typeof transactionSchema>;
 
@@ -77,6 +78,19 @@ export async function createTransaction(input: TransactionInput): Promise<Action
 
   revalidatePath("/", "layout");
   return { ok: true, data: { id: data.id } };
+}
+
+/** Lançamentos já gravados com o mesmo tipo, conta e valor, em até 3 dias da data: serve para avisar de repetição. */
+export async function findSimilarTransactions(input: { type: "entrada" | "saida"; amount: number; account_id: string; date: string }): Promise<{ date: string; description: string | null; status: string }[]> {
+  const parsed = z.object({ type: z.enum(["entrada", "saida"]), amount: money, account_id: z.uuid(), date }).safeParse(input);
+  if (!parsed.success) return [];
+  const v = parsed.data;
+  const shift = (n: number) => new Date(Date.parse(`${v.date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const supabase = await createClient();
+  const { data } = await supabase.from("transactions").select("date, description, status")
+    .eq("type", v.type).eq("account_id", v.account_id).eq("amount", v.amount)
+    .gte("date", shift(-3)).lte("date", shift(3)).order("date", { ascending: false }).limit(3);
+  return (data ?? []) as { date: string; description: string | null; status: string }[];
 }
 
 /** Anexa (ou troca) a foto do recibo de um lançamento que já existe. A foto já foi enviada ao bucket "receipts". */

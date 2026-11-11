@@ -7,6 +7,8 @@ import { categoriesFor } from "@/lib/constants";
 import { formatBRL, parseMoney, todayBR } from "@/lib/format";
 import { previewSplit } from "@/lib/split";
 import { submitTransaction } from "@/lib/offline-finance";
+import { findSimilarTransactions } from "@/app/gestao/actions";
+import { avisosLancamento, validarLancamento } from "@/lib/lancamento-check";
 import type { ScanResult } from "@/lib/receipt-scan";
 import { ReceiptCapture } from "./ReceiptCapture";
 import { VoiceEntry } from "./VoiceEntry";
@@ -22,6 +24,7 @@ export function TransactionForm({
   suppliers = [],
   onDone,
   onCancel,
+  onDirtyChange,
 }: {
   accounts: AccountBalance[];
   partners: Partner[];
@@ -30,11 +33,15 @@ export function TransactionForm({
   /** dentro da janela de Lançamentos: chamado depois de salvar (em vez de trocar de página) */
   onDone?: () => void;
   onCancel?: () => void;
+  /** avisa a janela se há algo digitado (para pedir confirmação antes de fechar) */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [queuedMsg, setQueuedMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dups, setDups] = useState<{ date: string; description: string | null; status: string }[] | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const [mode, setMode] = useState<"foto" | "voz" | "manual">("foto");
   const [type, setType] = useState<TxType>("saida");
@@ -53,9 +60,13 @@ export function TransactionForm({
     try {
       const last = localStorage.getItem("norte:last-account");
       if (last && accounts.some((a) => a.id === last)) setAccountId(last);
+      const cat = localStorage.getItem("norte:last-category:saida");
+      if (cat && categoriesFor("saida").includes(cat)) setCategory(cat);
     } catch { /* sem armazenamento: segue com a 1ª conta */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { onDirtyChange?.(Boolean(amountText.trim() || description.trim() || file)); }, [amountText, description, file]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!file) return setPreviewUrl(null);
@@ -73,7 +84,10 @@ export function TransactionForm({
 
   function changeType(next: TxType) {
     setType(next);
-    setCategory(categoriesFor(next)[0]);
+    let cat: string = categoriesFor(next)[0];
+    try { const l = localStorage.getItem(`norte:last-category:${next}`); if (l && categoriesFor(next).includes(l)) cat = l; } catch { /* ignora */ }
+    setCategory(cat);
+    setDups(null);
   }
 
   // Preenche o formulário com o que a leitura da foto encontrou (o usuário confere antes de salvar).
@@ -95,30 +109,61 @@ export function TransactionForm({
       : "Não encontrei dados nessa foto. Preencha manualmente.";
   }
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function reset() {
+    setAmountText(""); setDescription(""); setFile(null); setSupplierId(""); setDups(null);
+  }
+
+  function remember() {
+    try {
+      localStorage.setItem("norte:last-account", accountId);
+      localStorage.setItem(`norte:last-category:${type}`, category);
+    } catch { /* ignora */ }
+  }
+
+  /** `another`: salva e deixa a janela aberta para o próximo lançamento. `force`: ignora o aviso de repetido. */
+  function save(another: boolean, force: boolean) {
     setError(null);
     setQueuedMsg(null);
-    if (!amount || amount <= 0) return setError("Informe um valor maior que zero.");
+    setSavedMsg(null);
+    const bad = validarLancamento({ amount, paid, date, today: todayBR() });
+    if (bad) return setError(bad);
     if (!accountId) return setError("Escolha a conta.");
     startTransition(async () => {
+      // com sinal, confere se já existe um lançamento igual (pode ser o mesmo enviado duas vezes)
+      if (!force && typeof navigator !== "undefined" && navigator.onLine) {
+        const same = await findSimilarTransactions({ type, amount: amount!, account_id: accountId, date }).catch(() => []);
+        if (same.length) { setDups(same); return; }
+      }
+      setDups(null);
       const res = await submitTransaction(
-        { type, amount, account_id: accountId, category, description, status, date, supplier_id: type === "saida" && supplierId ? supplierId : undefined },
+        { type, amount: amount!, account_id: accountId, category, description, status, date, supplier_id: type === "saida" && supplierId ? supplierId : undefined },
         file,
       );
       if (res.mode === "rejected") return setError(res.error);
+      remember();
       if (res.mode === "queued") {
         // sem sinal: fica guardado no aparelho; limpa o formulário para o próximo lançamento
-        setQueuedMsg(`${formatBRL(amount)} em ${category} guardado neste aparelho${file ? " com a foto" : ""}. Vai sozinho quando o sinal voltar.`);
-        try { localStorage.setItem("norte:last-account", accountId); } catch { /* ignora */ }
-        setAmountText(""); setDescription(""); setFile(null);
+        setQueuedMsg(`${formatBRL(amount!)} em ${category} guardado neste aparelho${file ? " com a foto" : ""}. Vai sozinho quando o sinal voltar.`);
+        reset();
         return;
       }
-      try { localStorage.setItem("norte:last-account", accountId); } catch { /* ignora */ }
+      if (another) {
+        setSavedMsg(`Salvo: ${formatBRL(amount!)} em ${category}. Pode lançar o próximo.`);
+        reset();
+        router.refresh();
+        return;
+      }
       if (onDone) onDone();
       else router.push("/gestao/lancamentos");
     });
   }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    save(false, false);
+  }
+
+  const avisos = avisosLancamento({ amount, paid, date, today: todayBR() });
 
   const seg = (active: boolean, tone: "in" | "out" | "neutral") =>
     `flex-1 rounded-xl px-4 py-3 text-base font-bold transition ${
@@ -205,15 +250,34 @@ export function TransactionForm({
         </Card>
       )}
 
+      {avisos.length > 0 && (
+        <ul role="note" className="rounded-xl border border-brand-amber/40 bg-brand-amber/10 px-4 py-3 text-sm text-[#7a4a00]">
+          {avisos.map((a) => <li key={a}>• {a}</li>)}
+        </ul>
+      )}
       <FormError message={error} />
+      {dups && (
+        <div role="alert" className="rounded-xl border border-brand-amber/50 bg-brand-amber/10 p-3 text-sm text-[#7a4a00]">
+          <p className="font-bold">Parece que este lançamento já existe</p>
+          <ul className="mt-1">
+            {dups.map((d, i) => <li key={i}>• {d.date.split("-").reverse().join("/")} · mesmo valor e mesma conta{d.description ? ` · ${d.description}` : ""}</li>)}
+          </ul>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" onClick={() => save(false, true)} disabled={pending} className={btn.ghost}>É outro, salvar mesmo assim</button>
+            <button type="button" onClick={() => setDups(null)} className={btn.ghost}>Revisar</button>
+          </div>
+        </div>
+      )}
+      {savedMsg && <p role="status" className="rounded-xl border border-brand-green/30 bg-brand-green/10 px-4 py-3 text-sm font-bold text-brand-dark">{savedMsg}</p>}
       {queuedMsg && (
         <div role="status" className="rounded-xl border border-brand-green/30 bg-brand-green/10 p-3 text-sm text-brand-graphite">
           <p className="font-bold">Guardado no aparelho</p>
           <p>{queuedMsg}</p>
         </div>
       )}
-      <div className="flex gap-3">
-        <button type="submit" disabled={pending} className={`${btn.primary} flex-1`}>{pending ? (file ? "Enviando foto e salvando…" : "Salvando…") : "Salvar lançamento"}</button>
+      <div className="flex flex-wrap gap-3">
+        <button type="submit" disabled={pending} className={`${btn.primary} min-w-[10rem] flex-1`}>{pending ? (file ? "Enviando foto e salvando…" : "Salvando…") : "Salvar lançamento"}</button>
+        {onDone && <button type="button" disabled={pending} onClick={() => save(true, false)} className={btn.ghost}>Salvar e lançar outro</button>}
         <button type="button" onClick={() => (onCancel ? onCancel() : router.back())} className={btn.ghost}>Cancelar</button>
       </div>
     </form>
