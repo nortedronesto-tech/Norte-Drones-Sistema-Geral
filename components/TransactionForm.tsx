@@ -48,6 +48,15 @@ export function TransactionForm({
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // Lembra a última conta usada neste aparelho (a 1ª da lista só vale na primeira vez).
+  useEffect(() => {
+    try {
+      const last = localStorage.getItem("norte:last-account");
+      if (last && accounts.some((a) => a.id === last)) setAccountId(last);
+    } catch { /* sem armazenamento: segue com a 1ª conta */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!file) return setPreviewUrl(null);
     const url = URL.createObjectURL(file);
@@ -77,6 +86,8 @@ export function TransactionForm({
     if (d.category && cats.includes(d.category)) { setCategory(d.category); filled.push("categoria"); }
     else if (nextType !== type) setCategory(cats[0]);
     if (d.date && d.date <= todayBR() && d.date >= `${Number(todayBR().slice(0, 4)) - 2}-01-01`) { setDate(d.date); filled.push("data"); }
+    if (d.account_id && accounts.some((a) => a.id === d.account_id)) { setAccountId(d.account_id); filled.push("conta"); }
+    if (d.supplier_id && nextType === "saida" && suppliers.some((x) => x.id === d.supplier_id)) { setSupplierId(d.supplier_id); filled.push("fornecedor"); }
     if (d.description) { setDescription(d.description); filled.push("descrição"); }
     if (d.status) { setPaid(d.status === "pago"); filled.push(d.status === "pago" ? "situação (pago/recebido)" : "situação (pendente)"); }
     return filled.length
@@ -99,9 +110,11 @@ export function TransactionForm({
       if (res.mode === "queued") {
         // sem sinal: fica guardado no aparelho; limpa o formulário para o próximo lançamento
         setQueuedMsg(`${formatBRL(amount)} em ${category} guardado neste aparelho${file ? " com a foto" : ""}. Vai sozinho quando o sinal voltar.`);
+        try { localStorage.setItem("norte:last-account", accountId); } catch { /* ignora */ }
         setAmountText(""); setDescription(""); setFile(null);
         return;
       }
+      try { localStorage.setItem("norte:last-account", accountId); } catch { /* ignora */ }
       if (onDone) onDone();
       else router.push("/gestao/lancamentos");
     });
@@ -126,7 +139,7 @@ export function TransactionForm({
       </div>
 
       {mode === "foto" && <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} label="Foto do recibo (a IA lê e preenche)" />}
-      {mode === "voz" && <VoiceEntry onParsed={applyScan} />}
+      {mode === "voz" && <VoiceEntry onParsed={applyScan} accounts={accounts} suppliers={suppliers} />}
       {mode !== "foto" && <ReceiptCapture file={file} previewUrl={previewUrl} onFile={setFile} onScan={applyScan} scanEnabled={false} label="Anexar recibo (opcional)" />}
 
       <div className="flex gap-2" role="group" aria-label="Tipo de lançamento">

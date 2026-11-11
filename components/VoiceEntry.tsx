@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FileAudio, Mic, MicOff, Sparkles, Type } from "lucide-react";
 import { parseSpokenEntry } from "@/lib/text-parse";
+import { matchByName, removeNamed, type Named } from "@/lib/voice-match";
+import { formatBRL } from "@/lib/format";
 import { todayBR } from "@/lib/format";
 import type { ScanResult } from "@/lib/receipt-scan";
 import { btn, labelClass } from "./ui";
@@ -39,9 +41,13 @@ const ERRORS: Record<string, string> = {
  */
 export function VoiceEntry({
   onParsed,
-  placeholder = "Ex.: paguei 150 reais de diesel no posto Ipiranga ontem",
+  accounts = [],
+  suppliers = [],
+  placeholder = "Ex.: paguei 150 reais de diesel no posto Ipiranga ontem, pela conta do Nubank",
 }: {
   onParsed: (data: ScanResult) => string; // devolve o aviso ("Preenchi valor, data…")
+  accounts?: Named[]; // para reconhecer "pelo Nubank", "conta do Mateus"
+  suppliers?: Named[];
   placeholder?: string;
 }) {
   const [text, setText] = useState("");
@@ -51,27 +57,45 @@ export function VoiceEntry({
   const [transcribing, setTranscribing] = useState(false);
   const recRef = useRef<SpeechRec | null>(null);
   const baseRef = useRef("");
+  const textRef = useRef(""); // texto mais recente (o ditado termina fora do ciclo de renderização)
 
   useEffect(() => {
     setSupported(getRecognition() !== null);
     return () => recRef.current?.stop();
   }, []);
 
-  function fill(value: string) {
+  /** Interpreta a fala e preenche o formulário. Devolve o texto do aviso (o que foi entendido e o que faltou). */
+  function interpret(value: string): { data: ScanResult; note: { kind: "ok" | "warn"; text: string } } | null {
     const r = parseSpokenEntry(value, todayBR());
-    if (r.amount === null && !r.category && !r.date && !r.tipo) {
-      setNote({ kind: "warn", text: "Não entendi valor nem categoria. Diga algo como “paguei 150 reais de diesel”." });
+    if (r.amount === null && !r.category && !r.date && !r.tipo) return null;
+    const acc = accounts.length ? matchByName(value, accounts) : null;
+    const sup = suppliers.length && r.tipo !== "entrada" ? matchByName(value, suppliers, { minRatio: 0.6 }) : null;
+    const description = removeNamed(removeNamed(r.description, acc?.words ?? []), sup?.words ?? []);
+    const data: ScanResult = {
+      tipo: r.tipo, amount: r.amount, date: r.date, description, category: r.category, status: r.status,
+      account_id: acc?.item?.id ?? null, supplier_id: sup?.item?.id ?? null,
+    };
+    const msg = onParsed(data);
+    const got: string[] = [];
+    if (r.amount !== null) got.push(`valor ${formatBRL(r.amount)}`);
+    if (acc?.item) got.push(`conta ${acc.item.name}`);
+    if (sup?.item) got.push(`fornecedor ${sup.item.name}`);
+    const missing: string[] = [];
+    if (r.amount === null) missing.push("o valor (diga, por exemplo, “150 reais”)");
+    if (accounts.length > 1 && !acc?.item) {
+      missing.push(acc && acc.candidates.length > 1 ? `a conta (ficou entre ${acc.candidates.map((c) => c.name).join(" e ")})` : "a conta (diga “pelo Nubank”, “conta do Mateus”…)");
+    }
+    const text = `${msg}${got.length ? ` Entendi: ${got.join(", ")}.` : ""}${missing.length ? ` Faltou: ${missing.join("; ")}. Confira abaixo e complete.` : ""}`;
+    return { data, note: { kind: missing.length ? "warn" : "ok", text } };
+  }
+
+  function fill(value: string) {
+    const out = interpret(value);
+    if (!out) {
+      setNote({ kind: "warn", text: "Não entendi valor nem categoria. Diga algo como “paguei 150 reais de diesel pelo Nubank”." });
       return;
     }
-    const msg = onParsed({
-      tipo: r.tipo,
-      amount: r.amount,
-      date: r.date,
-      description: r.description,
-      category: r.category,
-      status: r.status,
-    });
-    setNote({ kind: "ok", text: msg });
+    setNote(out.note);
   }
 
   /** Áudio recebido (ex.: do WhatsApp): transcreve no servidor e preenche pelo texto. */
@@ -85,14 +109,11 @@ export function VoiceEntry({
       const res = await fetch("/api/gestao/audio-transcribe", { method: "POST", body });
       const json = (await res.json().catch(() => ({}))) as { text?: string; provider?: string; error?: string };
       if (!res.ok || !json.text) throw new Error(json.error ?? "Não consegui transcrever o áudio.");
+      textRef.current = json.text;
       setText(json.text);
-      const r = parseSpokenEntry(json.text, todayBR());
-      if (r.amount === null && !r.category && !r.date && !r.tipo) {
-        setNote({ kind: "warn", text: `Ouvi: “${json.text}”. Não achei valor nem categoria; ajuste o texto e toque em “Preencher pelo texto”.` });
-      } else {
-        const msg = onParsed({ tipo: r.tipo, amount: r.amount, date: r.date, description: r.description, category: r.category, status: r.status });
-        setNote({ kind: "ok", text: `${msg} (áudio transcrito por ${json.provider})` });
-      }
+      const out = interpret(json.text);
+      if (!out) setNote({ kind: "warn", text: `Ouvi: “${json.text}”. Não achei valor nem categoria; ajuste o texto e toque em “Preencher pelo texto”.` });
+      else setNote({ kind: out.note.kind, text: `${out.note.text} (áudio transcrito por ${json.provider})` });
     } catch (e) {
       setNote({ kind: "warn", text: e instanceof Error ? e.message : "Não consegui transcrever o áudio." });
     } finally {
@@ -111,21 +132,19 @@ export function VoiceEntry({
     rec.lang = "pt-BR";
     rec.interimResults = true;
     rec.continuous = false;
-    baseRef.current = text ? text.trim() + " " : "";
+    baseRef.current = textRef.current ? textRef.current.trim() + " " : "";
     rec.onresult = (e) => {
       let spoken = "";
       for (let i = 0; i < e.results.length; i++) spoken += e.results[i][0].transcript;
-      setText(baseRef.current + spoken);
+      textRef.current = baseRef.current + spoken;
+      setText(textRef.current);
     };
     rec.onerror = (e) => {
       setNote({ kind: "warn", text: ERRORS[e.error] ?? `O ditado falhou (${e.error}). Digite o texto.` });
     };
     rec.onend = () => {
       setListening(false);
-      setText((t) => {
-        if (t.trim()) fill(t);
-        return t;
-      });
+      if (textRef.current.trim()) fill(textRef.current);
     };
     recRef.current = rec;
     setNote(null);
@@ -143,7 +162,7 @@ export function VoiceEntry({
       <div className="rounded-xl border border-black/10 bg-white p-3">
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { textRef.current = e.target.value; setText(e.target.value); }}
           rows={2}
           maxLength={400}
           placeholder={placeholder}
