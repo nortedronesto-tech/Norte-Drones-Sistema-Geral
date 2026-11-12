@@ -25,7 +25,15 @@ function Row({ c, canWrite, canManage }: { c: ClientRow; canWrite: boolean; canM
     const r = await saveClient({ id: c.id, name: d.name, doc: d.doc, phone: d.phone, city: d.city, price_per_ha: price, notes: d.notes, active: d.active });
     setMsg(r.ok ? { ok: true, text: "Salvo." } : { ok: false, text: r.error });
   });
-  const remove = () => { if (confirm(`Apagar o cliente "${c.name}"?`)) start(async () => { const r = await deleteClient(c.id); if (!r.ok) setMsg({ ok: false, text: r.error }); }); };
+  const hasOS = c.orders > 0;
+  const remove = () => {
+    const q = hasOS ? `"${c.name}" tem ${c.orders} OS. Desativar o cliente? O histórico fica guardado e ele sai da lista de novas OS.` : `Apagar o cliente "${c.name}"?`;
+    if (confirm(q)) start(async () => {
+      const r = await deleteClient(c.id);
+      if (!r.ok) setMsg({ ok: false, text: r.error });
+      else { setMsg({ ok: true, text: r.data?.deactivated ? "Cliente desativado." : "Apagado." }); if (r.data?.deactivated) setD((x) => ({ ...x, active: false })); }
+    });
+  };
 
   return (
     <details className="group rounded-xl border border-black/10 bg-white">
@@ -51,7 +59,7 @@ function Row({ c, canWrite, canManage }: { c: ClientRow; canWrite: boolean; canM
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" className="size-5" checked={d.active} onChange={(e) => patch({ active: e.target.checked })} /> Ativo</label>
             <button type="button" className={btn.primary} disabled={pending || !d.name.trim()} onClick={save}>Salvar</button>
-            {canManage && <button type="button" className={btn.danger} disabled={pending} onClick={remove}><Trash2 className="size-4" aria-hidden /> Apagar</button>}
+            {canManage && <button type="button" className={btn.danger} disabled={pending} onClick={remove}><Trash2 className="size-4" aria-hidden /> {hasOS ? "Desativar" : "Apagar"}</button>}
             {msg && <span role="status" className={`text-sm font-semibold ${msg.ok ? "text-brand-green" : "text-danger"}`}>{msg.text}</span>}
           </div>
         )}

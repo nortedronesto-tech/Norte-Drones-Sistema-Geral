@@ -47,17 +47,24 @@ export async function saveClient(input: z.input<typeof clientSchema>): Promise<A
   return { ok: true, data: { id: data.id } };
 }
 
-export async function deleteClient(id: string): Promise<ActionResult> {
+/** Apaga o cliente; se ele já tem OS, desativa em vez de apagar (o histórico fica). */
+export async function deleteClient(id: string): Promise<ActionResult<{ deactivated: boolean }>> {
   if (!z.uuid().safeParse(id).success) return fail("Cliente inválido");
   const supabase = await createClient();
   const { data, error } = await supabase.from("clients").delete().eq("id", id).select("id");
   if (error) {
-    if (error.code === "23503") return fail("Esse cliente tem ordens de serviço. Desative em vez de apagar.");
+    if (error.code === "23503") {
+      const off = await supabase.from("clients").update({ active: false }).eq("id", id).select("id");
+      if (off.error) return dbError(off.error);
+      if (!off.data?.length) return fail("Seu nível de acesso não permite desativar clientes.");
+      refresh();
+      return { ok: true, data: { deactivated: true } };
+    }
     return dbError(error);
   }
   if (!data?.length) return fail("Seu nível de acesso não permite apagar clientes.");
   refresh();
-  return { ok: true };
+  return { ok: true, data: { deactivated: false } };
 }
 
 /** Acha o cliente pelo nome (sem diferenciar maiúscula) ou cadastra: usado ao enviar OS feitas sem sinal. */
@@ -146,6 +153,30 @@ export async function cancelOS(id: string): Promise<ActionResult> {
   const { data, error } = await supabase.from("service_orders").update({ status: "cancelada" }).eq("id", id).eq("status", "aberta").select("id");
   if (error) return dbError(error);
   if (!data?.length) return fail("Só dá para cancelar uma OS aberta.");
+  refresh();
+  return { ok: true };
+}
+
+/** Desfaz uma OS concluída: remove a cobrança se ainda não foi recebida e deixa a OS como cancelada. */
+export async function voidOS(id: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(id).success) return fail("OS inválida");
+  const supabase = await createClient();
+  const { data: os, error: e1 } = await supabase.from("service_orders").select("status, transaction_id").eq("id", id).maybeSingle();
+  if (e1) return dbError(e1);
+  if (!os) return fail("OS não encontrada.");
+  if (os.status !== "concluida") return fail("Só dá para desfazer uma OS concluída.");
+  if (os.transaction_id) {
+    const { data: tx } = await supabase.from("transactions").select("status").eq("id", os.transaction_id).maybeSingle();
+    if (tx && tx.status === "pago") return fail("A cobrança desta OS já foi recebida. Exclua o lançamento em Lançamentos primeiro.");
+    if (tx) {
+      const del = await supabase.from("transactions").delete().eq("id", os.transaction_id).select("id");
+      if (del.error) return dbError(del.error);
+      if (!del.data?.length) return fail("Seu nível de acesso não permite desfazer a cobrança.");
+    }
+  }
+  const { data, error } = await supabase.from("service_orders").update({ status: "cancelada", transaction_id: null }).eq("id", id).eq("status", "concluida").select("id");
+  if (error) return dbError(error);
+  if (!data?.length) return fail("Seu nível de acesso não permite desfazer a OS.");
   refresh();
   return { ok: true };
 }

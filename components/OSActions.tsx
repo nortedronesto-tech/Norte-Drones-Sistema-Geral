@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Copy, Download, FileText, Pencil, Share2, Trash2, XCircle } from "lucide-react";
-import { cancelOS, closeOS, deleteOS, setClientOk } from "@/app/gestao/os/actions";
+import { cancelOS, closeOS, deleteOS, setClientOk, voidOS } from "@/app/gestao/os/actions";
 import { formatDate, todayBR } from "@/lib/format";
 import type { AccountBalance } from "@/lib/types";
 import { AccountPicker } from "./AccountPicker";
@@ -127,6 +127,9 @@ export function OSActions({ osId, status, accounts, due, text, total, data, cont
       <div className="flex flex-wrap gap-2">
         {canWrite && status === "aberta" && (
           <button type="button" className={btn.danger} disabled={pending} onClick={() => { if (confirm("Cancelar esta OS? Ela não gera cobrança.")) run(() => cancelOS(osId)); }}><XCircle className="size-5" aria-hidden /> Cancelar OS</button>
+        )}
+        {canManage && status === "concluida" && (
+          <button type="button" className={btn.danger} disabled={pending} onClick={() => { if (confirm("Desfazer esta OS? A cobrança em Contas a receber será removida (se ainda não foi recebida) e a OS fica cancelada.")) run(() => voidOS(osId)); }}><XCircle className="size-5" aria-hidden /> Desfazer OS e cobrança</button>
         )}
         {canManage && status !== "concluida" && (
           <button type="button" className={btn.danger} disabled={pending} onClick={() => { if (confirm("Apagar esta OS de vez?")) run(() => deleteOS(osId), () => router.push("/gestao/os")); }}><Trash2 className="size-5" aria-hidden /> Apagar</button>
