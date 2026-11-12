@@ -1,5 +1,6 @@
 "use server";
 
+import { addReceipt, MAX_ANEXOS, receiptList } from "@/lib/receipts";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -93,7 +94,7 @@ export async function findSimilarTransactions(input: { type: "entrada" | "saida"
   return (data ?? []) as { date: string; description: string | null; status: string }[];
 }
 
-/** Anexa (ou troca) a foto do recibo de um lançamento que já existe. A foto já foi enviada ao bucket "receipts". */
+/** Acrescenta uma foto (mais um anexo) a um lançamento que já existe. A foto já foi enviada ao bucket "receipts". */
 export async function attachReceipt(id: string, receiptPath: string): Promise<ActionResult> {
   if (!z.uuid().safeParse(id).success) return fail("Lançamento inválido");
   if (!/^\d{4}\/\d{2}\/[\w.-]+$/.test(receiptPath) || receiptPath.length > 300) return fail("Caminho da foto inválido");
@@ -101,11 +102,12 @@ export async function attachReceipt(id: string, receiptPath: string): Promise<Ac
   const { data: cur, error: curErr } = await supabase.from("transactions").select("receipt_path").eq("id", id).maybeSingle();
   if (curErr) return dbError(curErr);
   if (!cur) return fail("Lançamento não encontrado");
-  if (cur.receipt_path === receiptPath) return { ok: true }; // reenvio da fila: já está anexado
-  const { data, error } = await supabase.from("transactions").update({ receipt_path: receiptPath }).eq("id", id).select("id");
+  const have = receiptList(cur.receipt_path);
+  if (have.includes(receiptPath)) return { ok: true }; // reenvio da fila: já está anexado
+  if (have.length >= MAX_ANEXOS) return fail(`Já tem ${MAX_ANEXOS} anexos neste lançamento.`);
+  const { data, error } = await supabase.from("transactions").update({ receipt_path: addReceipt(cur.receipt_path, receiptPath) }).eq("id", id).select("id");
   if (error) return dbError(error);
   if (!data?.length) return fail("Seu nível de acesso não permite anexar recibo.");
-  // A foto antiga NÃO é apagada do bucket: a trilha de auditoria guarda o caminho dela e continua mostrando o recibo antigo.
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -170,7 +172,7 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
   const { data: row } = await supabase.from("transactions").select("receipt_path").eq("id", id).maybeSingle();
   const { error } = await supabase.from("transactions").delete().eq("id", id);
   if (error) return dbError(error);
-  if (row?.receipt_path) await supabase.storage.from("receipts").remove([row.receipt_path]);
+  if (row?.receipt_path) await supabase.storage.from("receipts").remove(receiptList(row.receipt_path));
   revalidatePath("/", "layout");
   return { ok: true };
 }

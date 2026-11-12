@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { receiptList } from "@/lib/receipts";
 import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { createClient } from "@/lib/supabase/server";
@@ -35,9 +36,9 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const pathsOf = (r: Row) => {
     if (r.table_name !== "transactions") return [] as string[];
     const out = new Set<string>();
-    for (const row of [r.new_row, r.old_row]) { const p = row?.receipt_path; if (typeof p === "string" && p) out.add(p); }
+    for (const row of [r.new_row, r.old_row]) { const p = row?.receipt_path; if (typeof p === "string") receiptList(p).forEach((x) => out.add(x)); }
     const ch = r.changes?.receipt_path;
-    for (const p of [ch?.de, ch?.para]) if (typeof p === "string" && p) out.add(p);
+    for (const p of [ch?.de, ch?.para]) if (typeof p === "string") receiptList(p).forEach((x) => out.add(x));
     return [...out];
   };
   const urls: Record<string, string> = {};

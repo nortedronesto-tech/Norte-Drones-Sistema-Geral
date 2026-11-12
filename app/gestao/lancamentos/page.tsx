@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { receiptList } from "@/lib/receipts";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountBalances, getPartners, getReservePct, getSuppliers } from "@/lib/data";
@@ -68,7 +69,7 @@ export default async function TransactionsPage({
   const rows = all.slice(0, limite);
 
   // URLs assinadas (1h) para as fotos de recibo
-  const paths = rows.map((r) => r.receipt_path).filter((p): p is string => !!p);
+  const paths = rows.flatMap((r) => receiptList(r.receipt_path));
   const receiptUrls: Record<string, string> = {};
   if (paths.length) {
     const { data: signed } = await supabase.storage.from("receipts").createSignedUrls(paths, 3600);

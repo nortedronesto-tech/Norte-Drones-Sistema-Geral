@@ -1,5 +1,6 @@
 "use client";
 
+import { receiptList } from "@/lib/receipts";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { CheckCircle2, Pencil, Trash2 } from "lucide-react";
@@ -30,7 +31,7 @@ export function TransactionList({ rows, receiptUrls, canWrite = true }: { rows: 
       <ul className="mt-2 divide-y divide-black/[0.06]">
         {rows.map((t) => {
           const busy = pendingId === t.id;
-          const receipt = t.receipt_path ? receiptUrls[t.receipt_path] : undefined;
+          const anexos = receiptList(t.receipt_path).filter((p) => receiptUrls[p]);
           return (
             <li key={t.id} className={`py-3.5 ${busy ? "opacity-50" : ""}`}>
               <div className="flex items-start justify-between gap-3">
@@ -57,7 +58,7 @@ export function TransactionList({ rows, receiptUrls, canWrite = true }: { rows: 
                     {t.type === "entrada" ? "Marcar como recebido" : "Marcar como pago"}
                   </button>
                 )}
-                {receipt && t.receipt_path && <ReceiptLink path={t.receipt_path} url={receipt} />}
+                {anexos.map((p, i) => <ReceiptLink key={p} path={p} url={receiptUrls[p]} label={anexos.length > 1 ? `Foto ${i + 1}` : "Ver foto"} />)}
                 {canWrite && (
                   <Link href={`/gestao/lancamentos/${t.id}/editar`} className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-black/[0.05] px-3 py-1.5 text-sm font-semibold hover:bg-black/[0.08]" aria-label="Editar lançamento">
                     <Pencil className="size-4" aria-hidden /> Editar

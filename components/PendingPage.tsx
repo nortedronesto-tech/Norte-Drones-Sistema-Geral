@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { receiptList } from "@/lib/receipts";
 import { createClient } from "@/lib/supabase/server";
 import { getAccess, requireFinanceAccess } from "@/lib/access";
 import { formatBRL, todayBR } from "@/lib/format";
@@ -20,7 +21,7 @@ export async function PendingPage({ kind }: { kind: "pagar" | "receber" }) {
   if (error) throw new Error(error.message);
   const rows = ((data ?? []) as unknown as Transaction[]).map((t) => ({ ...t, amount: Number(t.amount) }));
   // links temporários (1h) dos anexos, para abrir o recibo direto na conta
-  const paths = rows.map((r) => r.receipt_path).filter((x): x is string => !!x);
+  const paths = rows.flatMap((r) => receiptList(r.receipt_path));
   const receiptUrls: Record<string, string> = {};
   if (paths.length) {
     const { data: signed } = await supabase.storage.from("receipts").createSignedUrls(paths, 3600);
