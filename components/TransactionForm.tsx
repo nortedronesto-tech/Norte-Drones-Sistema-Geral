@@ -9,6 +9,7 @@ import { previewSplit } from "@/lib/split";
 import { submitTransaction } from "@/lib/offline-finance";
 import { findSimilarTransactions } from "@/app/gestao/actions";
 import { avisosLancamento, validarLancamento } from "@/lib/lancamento-check";
+import { gerarParcelas, MAX_PARCELAS } from "@/lib/parcelas";
 import type { ScanResult } from "@/lib/receipt-scan";
 import { ReceiptCapture } from "./ReceiptCapture";
 import { VoiceEntry } from "./VoiceEntry";
@@ -51,6 +52,8 @@ export function TransactionForm({
   const [category, setCategory] = useState(categoriesFor("saida")[0]);
   const [description, setDescription] = useState("");
   const [paid, setPaid] = useState(true);
+  const [parcelasText, setParcelasText] = useState("1");
+  const [modoParc, setModoParc] = useState<"total" | "parcela">("total");
   const [date, setDate] = useState(todayBR());
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -76,7 +79,14 @@ export function TransactionForm({
   }, [file]);
 
   const amount = parseMoney(amountText);
-  const status: TxStatus = paid ? "pago" : type === "entrada" ? "a_receber" : "a_pagar";
+  const nParc = Math.min(MAX_PARCELAS, Math.max(1, Math.trunc(Number(parcelasText) || 1)));
+  const parcelado = nParc > 1;
+  const parcelas = useMemo(
+    () => (parcelado && amount && amount > 0 ? gerarParcelas({ valor: amount, modo: modoParc, n: nParc, primeiro: date, descricao: description }) : []),
+    [parcelado, amount, modoParc, nParc, date, description],
+  );
+  const pago = paid && !parcelado; // parcelado sempre entra como "a pagar/a receber": cada parcela é marcada quando for paga
+  const status: TxStatus = pago ? "pago" : type === "entrada" ? "a_receber" : "a_pagar";
   const preview = useMemo(
     () => (type === "entrada" && amount && amount > 0 ? previewSplit(amount, reservePct, partners) : null),
     [type, amount, reservePct, partners],
@@ -110,7 +120,7 @@ export function TransactionForm({
   }
 
   function reset() {
-    setAmountText(""); setDescription(""); setFile(null); setSupplierId(""); setDups(null);
+    setAmountText(""); setDescription(""); setFile(null); setSupplierId(""); setDups(null); setParcelasText("1");
   }
 
   function remember() {
@@ -125,9 +135,10 @@ export function TransactionForm({
     setError(null);
     setQueuedMsg(null);
     setSavedMsg(null);
-    const bad = validarLancamento({ amount, paid, date, today: todayBR() });
+    const bad = validarLancamento({ amount, paid: pago, date, today: todayBR() });
     if (bad) return setError(bad);
     if (!accountId) return setError("Escolha a conta.");
+    if (parcelado) return saveParcelado(another);
     startTransition(async () => {
       // com sinal, confere se já existe um lançamento igual (pode ser o mesmo enviado duas vezes)
       if (!force && typeof navigator !== "undefined" && navigator.onLine) {
@@ -158,12 +169,37 @@ export function TransactionForm({
     });
   }
 
+  /** Uma conta por parcela, cada uma com a sua chave (a fila sem sinal continua valendo). A foto vai só na 1ª. */
+  function saveParcelado(another: boolean) {
+    if (!parcelas.length) return setError("Confira o valor e a data da 1ª parcela.");
+    startTransition(async () => {
+      let ok = 0, queued = 0;
+      for (const p of parcelas) {
+        const res = await submitTransaction(
+          { type, amount: p.amount, account_id: accountId, category, description: p.description, status, date: p.date, supplier_id: type === "saida" && supplierId ? supplierId : undefined },
+          p.n === 1 ? file : null,
+        );
+        if (res.mode === "rejected") {
+          setError(`${ok + queued} de ${parcelas.length} parcelas foram lançadas. A parcela ${p.n} deu erro: ${res.error} Não lance de novo as que já entraram; confira em Lançamentos.`);
+          router.refresh();
+          return;
+        }
+        if (res.mode === "queued") queued++; else ok++;
+      }
+      remember();
+      const resumo = `${parcelas.length} parcelas de ${type === "entrada" ? "entrada" : "despesa"} lançadas (${formatBRL(parcelas.reduce((t, p) => t + p.amount, 0))} no total)`;
+      if (queued) { setQueuedMsg(`${resumo}. ${queued} ficaram guardadas neste aparelho e vão sozinhas quando o sinal voltar.`); reset(); return; }
+      if (another) { setSavedMsg(`${resumo}. Pode lançar o próximo.`); reset(); router.refresh(); return; }
+      if (onDone) onDone(); else router.push(type === "entrada" ? "/gestao/contas-a-receber" : "/gestao/contas-a-pagar");
+    });
+  }
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     save(false, false);
   }
 
-  const avisos = avisosLancamento({ amount, paid, date, today: todayBR() });
+  const avisos = avisosLancamento({ amount, paid: pago, date, today: todayBR() });
 
   const seg = (active: boolean, tone: "in" | "out" | "neutral") =>
     `flex-1 rounded-xl px-4 py-3 text-base font-bold transition ${
@@ -220,20 +256,47 @@ export function TransactionForm({
         <div>
           <span className={labelClass}>Situação</span>
           <div className="flex gap-2" role="group" aria-label="Situação">
-            <button type="button" onClick={() => setPaid(true)} className={seg(paid, "neutral")} aria-pressed={paid}>{type === "entrada" ? "Recebido" : "Pago"}</button>
-            <button type="button" onClick={() => setPaid(false)} className={seg(!paid, "neutral")} aria-pressed={!paid}>{type === "entrada" ? "A receber" : "A pagar"}</button>
+            <button type="button" onClick={() => { setPaid(true); setParcelasText("1"); }} className={seg(pago, "neutral")} aria-pressed={pago}>{type === "entrada" ? "Recebido" : "Pago"}</button>
+            <button type="button" onClick={() => setPaid(false)} className={seg(!pago, "neutral")} aria-pressed={!pago}>{type === "entrada" ? "A receber" : "A pagar"}</button>
           </div>
         </div>
         <div>
-          <label htmlFor="date" className={labelClass}>{paid ? "Data" : "Vencimento"}</label>
+          <label htmlFor="date" className={labelClass}>{pago ? "Data" : parcelado ? "Vencimento da 1ª parcela" : "Vencimento"}</label>
           <input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} required />
         </div>
+      </div>
+
+      <div className="rounded-xl border border-black/10 p-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="parcelas" className={labelClass}>Parcelas <span className="font-normal text-brand-graphite/50">(1 = à vista)</span></label>
+            <input id="parcelas" inputMode="numeric" value={parcelasText} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 2); setParcelasText(v); if (Number(v) > 1) setPaid(false); }} onBlur={() => setParcelasText(String(nParc))} className={inputClass} />
+          </div>
+          {parcelado && (
+            <div>
+              <label htmlFor="modoParc" className={labelClass}>O valor acima é</label>
+              <select id="modoParc" value={modoParc} onChange={(e) => setModoParc(e.target.value as "total" | "parcela")} className={inputClass}>
+                <option value="total">o total (divido pelas parcelas)</option>
+                <option value="parcela">o valor de cada parcela</option>
+              </select>
+            </div>
+          )}
+        </div>
+        {parcelado && (
+          parcelas.length ? (
+            <div className="mt-3 text-sm">
+              <p className="font-bold">{nParc}x de {formatBRL(parcelas[0].amount)} · total {formatBRL(parcelas.reduce((t, p) => t + p.amount, 0))}</p>
+              <p className="mt-1 text-brand-graphite/70">Vencimentos: {parcelas.slice(0, 4).map((p) => p.date.split("-").reverse().slice(0, 2).join("/") + "/" + p.date.slice(2, 4)).join(", ")}{parcelas.length > 4 ? ` … até ${parcelas[parcelas.length - 1].date.split("-").reverse().join("/")}` : ""}</p>
+              <p className="mt-1 text-xs text-brand-graphite/60">Cada parcela entra como {type === "entrada" ? "a receber" : "a pagar"}; marque cada uma quando for {type === "entrada" ? "recebida" : "paga"}. A foto fica na 1ª parcela.</p>
+            </div>
+          ) : <p className="mt-2 text-sm text-brand-graphite/60">Informe o valor e a data para ver as parcelas.</p>
+        )}
       </div>
 
       {preview && (
         <Card className="border-brand-green/30 bg-brand-green/[0.04]">
           <p className="text-sm font-bold text-brand-dark">
-            {paid ? "Rateio desta entrada" : "Previsão de rateio (acontece quando for recebida)"}
+            {pago ? "Rateio desta entrada" : "Previsão de rateio (acontece quando for recebida)"}
           </p>
           <dl className="mt-3 space-y-1.5 text-sm">
             <div className="flex justify-between"><dt>Fundo de reserva ({reservePct}%)</dt><dd className="num font-bold">{formatBRL(preview.reserve)}</dd></div>
