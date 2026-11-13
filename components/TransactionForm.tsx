@@ -81,10 +81,18 @@ export function TransactionForm({
   const amount = parseMoney(amountText);
   const nParc = Math.min(MAX_PARCELAS, Math.max(1, Math.trunc(Number(parcelasText) || 1)));
   const parcelado = nParc > 1;
-  const parcelas = useMemo(
-    () => (parcelado && amount && amount > 0 ? gerarParcelas({ valor: amount, modo: modoParc, n: nParc, primeiro: date, descricao: description }) : []),
-    [parcelado, amount, modoParc, nParc, date, description],
+  const base = useMemo(
+    () => (parcelado && amount && amount > 0 ? gerarParcelas({ valor: amount, modo: modoParc, n: nParc, primeiro: date, descricao: "" }) : []),
+    [parcelado, amount, modoParc, nParc, date],
   );
+  // linhas editáveis: nascem do cálculo acima e cada uma pode ser ajustada (valor, data, já paga)
+  const [linhas, setLinhas] = useState<{ amount: string; date: string; paid: boolean }[]>([]);
+  useEffect(() => { setLinhas(base.map((p) => ({ amount: p.amount.toFixed(2).replace(".", ","), date: p.date, paid: false }))); }, [base]);
+  const setLinha = (i: number, patch: Partial<{ amount: string; date: string; paid: boolean }>) => setLinhas((ls) => ls.map((l, k) => (k === i ? { ...l, ...patch } : l)));
+  const parcelas = linhas.map((l, i) => ({
+    n: i + 1, of: linhas.length, amount: parseMoney(l.amount) ?? 0, date: l.date, paid: l.paid,
+    description: `${description.trim() ? `${description.trim()} ` : ""}(${i + 1}/${linhas.length})`,
+  }));
   const pago = paid && !parcelado; // parcelado sempre entra como "a pagar/a receber": cada parcela é marcada quando for paga
   const status: TxStatus = pago ? "pago" : type === "entrada" ? "a_receber" : "a_pagar";
   const preview = useMemo(
@@ -172,11 +180,15 @@ export function TransactionForm({
   /** Uma conta por parcela, cada uma com a sua chave (a fila sem sinal continua valendo). A foto vai só na 1ª. */
   function saveParcelado(another: boolean) {
     if (!parcelas.length) return setError("Confira o valor e a data da 1ª parcela.");
+    for (const p of parcelas) {
+      const bad = validarLancamento({ amount: p.amount, paid: p.paid, date: p.date, today: todayBR() });
+      if (bad) return setError(`Parcela ${p.n}: ${bad}`);
+    }
     startTransition(async () => {
       let ok = 0, queued = 0;
       for (const p of parcelas) {
         const res = await submitTransaction(
-          { type, amount: p.amount, account_id: accountId, category, description: p.description, status, date: p.date, supplier_id: type === "saida" && supplierId ? supplierId : undefined },
+          { type, amount: p.amount, account_id: accountId, category, description: p.description, status: p.paid ? "pago" : type === "entrada" ? "a_receber" : "a_pagar", date: p.date, supplier_id: type === "saida" && supplierId ? supplierId : undefined },
           p.n === 1 ? file : null,
         );
         if (res.mode === "rejected") {
@@ -285,9 +297,19 @@ export function TransactionForm({
         {parcelado && (
           parcelas.length ? (
             <div className="mt-3 text-sm">
-              <p className="font-bold">{nParc}x de {formatBRL(parcelas[0].amount)} · total {formatBRL(parcelas.reduce((t, p) => t + p.amount, 0))}</p>
-              <p className="mt-1 text-brand-graphite/70">Vencimentos: {parcelas.slice(0, 4).map((p) => p.date.split("-").reverse().slice(0, 2).join("/") + "/" + p.date.slice(2, 4)).join(", ")}{parcelas.length > 4 ? ` … até ${parcelas[parcelas.length - 1].date.split("-").reverse().join("/")}` : ""}</p>
-              <p className="mt-1 text-xs text-brand-graphite/60">Cada parcela entra como {type === "entrada" ? "a receber" : "a pagar"}; marque cada uma quando for {type === "entrada" ? "recebida" : "paga"}. A foto fica na 1ª parcela.</p>
+              <p className="font-bold">{nParc} parcelas · total {formatBRL(parcelas.reduce((t, p) => t + p.amount, 0))}</p>
+              <p className="mt-1 text-xs text-brand-graphite/60">Ajuste o que precisar: valor, data e se já foi {type === "entrada" ? "recebida" : "paga"}. Ex.: 1ª parcela de entrada 80.000 já paga, e as outras 6 de 5.300 (use 7 parcelas, “valor de cada parcela” 5.300 e mude só a 1ª).</p>
+              <ul className="mt-2 space-y-2">
+                {linhas.map((l, i) => (
+                  <li key={i} className="grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
+                    <span className="text-xs font-bold text-brand-graphite/60">{i + 1}/{linhas.length}</span>
+                    <input aria-label={`Valor da parcela ${i + 1}`} inputMode="decimal" className={`${inputClass} num`} value={l.amount} onChange={(e) => setLinha(i, { amount: e.target.value })} />
+                    <input aria-label={`Data da parcela ${i + 1}`} type="date" className={inputClass} value={l.date} onChange={(e) => setLinha(i, { date: e.target.value })} />
+                    <label className="col-span-3 -mt-1 flex items-center gap-2 pl-10 text-xs font-semibold text-brand-graphite/70"><input type="checkbox" className="size-4" checked={l.paid} onChange={(e) => setLinha(i, { paid: e.target.checked })} /> já {type === "entrada" ? "recebida" : "paga"}</label>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-brand-graphite/60">As não marcadas entram como {type === "entrada" ? "a receber" : "a pagar"}. A foto fica na 1ª parcela.</p>
             </div>
           ) : <p className="mt-2 text-sm text-brand-graphite/60">Informe o valor e a data para ver as parcelas.</p>
         )}
